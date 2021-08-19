@@ -1,0 +1,4 @@
+base_path output_dir patch_size n_folds n_classes n_epochs batch_size learning_rate cpu without_bad no_shuffle verbose
+str str int int int int int float bool bool bool bool
+../datasets/Finger/FOESamples ../results 32 2 2 200 128 0.01 False True False True
+../datasets/Finger/FOESamples ../results 32 2 2 200 128 0.01 False True False True

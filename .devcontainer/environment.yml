@@ -1,0 +1,20 @@
+name: pytorchvision
+
+channels:
+  - conda-forge
+  - defaults
+  - pytorch
+
+dependencies:
+  - ipykernel
+  - python
+  - pandas
+  - scikit-image
+  - scikit-learn
+  - pip
+  - pip:
+    - torch==1.7.1+cu101 
+    - torchvision==0.8.2+cu101 
+    - torchnet
+    - -f https://download.pytorch.org/whl/torch_stable.html
+    

@@ -1,0 +1,38 @@
+version: '3'
+
+services:
+  fingerprint-orientation-estimation:
+    build:
+      context: .
+    image: foe:latest
+    container_name: foe-container
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - ../data:/home/csigb/foe/data
+      - ../notebooks:/home/csigb/foe/notebooks
+      - ../foe/src:/home/csigb/foe/src
+      - ../results:/home/csigb/foe/results
+      - ~/Desktop/Datasets:/home/csigb/foe/datasets
+    init: true
+    stdin_open: true
+    tty: true
+
+    # Overrides default command so things don't shut down after the process ends.
+    # entrypoint: /usr/local/share/docker-init.sh
+    # command: sleep infinity 
+
+    # Uncomment the next four lines if you will use a ptrace-based debuggers like C++, Go, and Rust.
+    # cap_add:
+    #  - SYS_PTRACE
+    # security_opt:
+    #   - seccomp:unconfined
+
+    # Uncomment the next line to use a non-root user for all processes.
+    # user: vscode
+
+    # Use "forwardPorts" in **devcontainer.json** to forward an app port locally. 
+    # (Adding the "ports" property to this file will not forward from a Codespace.)
+
