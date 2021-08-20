@@ -11,6 +11,8 @@ dependencies:
   - pandas
   - scikit-image
   - scikit-learn
+  - torch-tb-profiler
+  - tensorboard
   - pip
   - pip:
     - torch==1.7.1+cu101 

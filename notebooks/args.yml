@@ -1,0 +1,16 @@
+verbose: True
+seed: null
+base_path: ../datasets/Finger/FOESamples
+patch_size: 32
+n_folds: 10
+n_classes: 2
+without_bad: True
+no_shuffle: False
+no_hflip: False
+delta_r: 0.1
+output_dir: ../results
+n_epochs: 200
+batch_size: 128
+learning_rate: 0.01
+model_path: null
+cpu: False
