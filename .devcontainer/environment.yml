@@ -7,16 +7,19 @@ channels:
 
 dependencies:
   - ipykernel
+  - ipympl
   - python
+  - matplotlib
+  - flake8
   - pandas
   - scikit-image
   - scikit-learn
-  - torch-tb-profiler
   - tensorboard
   - pip
   - pip:
     - torch==1.7.1+cu101 
     - torchvision==0.8.2+cu101 
     - torchnet
+    - torch-tb-profiler
     - -f https://download.pytorch.org/whl/torch_stable.html
     

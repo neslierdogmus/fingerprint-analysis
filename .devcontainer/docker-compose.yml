@@ -11,7 +11,6 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
     volumes:
-      - ../data:/home/csigb/foe/data
       - ../notebooks:/home/csigb/foe/notebooks
       - ../foe/src:/home/csigb/foe/src
       - ../results:/home/csigb/foe/results
