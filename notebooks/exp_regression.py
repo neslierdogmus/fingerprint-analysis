@@ -173,15 +173,16 @@ for epoch in range(done_epochs+1, done_epochs+num_epochs+1):
     val_loss_bd = model.val_epoch(val_loader_bd, loss_fn)
     scheduler.step()
 
-    # train_rmse = np.sqrt(train_err_sqr / n_train) * 180.0 / np.pi  # in degrees
+    # train_rmse = np.sqrt(train_err_sqr / n_train) * 180.0 / np.pi  # in deg
     # val_rmse_gd = np.sqrt(val_err_sqr_gd / n_val_gd) * 180.0 / np.pi
     # val_rmse_bd = np.sqrt(val_err_sqr_bd / n_val_bd) * 180.0 / np.pi
 
     # print('EPOCH {}/{}\ttrain loss / rmse {:.4f} / {:.1f}°\t'
     #       'val loss / rmse good {:.4f} / {:.1f}°\t'
     #       'val loss / rmse bad {:.4f} / {:.1f}°'
-    #       .format(epoch + 1, done_epochs + num_epochs, train_loss, train_rmse,
-    #               val_loss_gd, val_rmse_gd, val_loss_bd, val_rmse_bd))
+    #       .format(epoch + 1, done_epochs + num_epochs, train_loss,
+    #               train_rmse, val_loss_gd, val_rmse_gd, val_loss_bd,
+    #               val_rmse_bd))
 
     print('EPOCH {}/{}\ttrain loss {:.4f}\t'
           'val loss good {:.4f}\t'
