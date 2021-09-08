@@ -11,18 +11,11 @@ import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
 
+from foe_mlp import FOEMLP
+from foe_autoencoder import FOEAutoencoder
+from foe_fingerprint_dataset import FOEFingerprintDataset
+
 from IPython import get_ipython
-
-import sys
-import os
-
-sys.path.append(os.path.normpath(
-                os.path.join(os.path.dirname(
-                             os.path.abspath(__file__)), '..')))
-from src.foe_mlp import FOEMLP                  # noqa: E402
-from src.foe_autoencoder import FOEAutoencoder  # noqa: E402
-from src.foe_utils import init_datasets         # noqa: E402
-
 get_ipython().run_line_magic('matplotlib', 'widget')
 
 
@@ -105,15 +98,15 @@ else:
 
 (ae, *_) = FOEAutoencoder.load_checkpoint(ae_path, 'cpu', True)
 
-tset_gd, vset_gd = init_datasets(dataset_dir, ['good'], splits_dir, split_id,
-                                 radius=radius, patch_size=patch_size,
-                                 n_folds=num_folds, fold_idx=FOLD_IDX)
-tset_bd, vset_bd = init_datasets(dataset_dir, ['bad'], splits_dir, split_id,
-                                 radius=radius, patch_size=patch_size,
-                                 n_folds=num_folds, fold_idx=FOLD_IDX)
-tset, _ = init_datasets(dataset_dir, ['good', 'bad'], splits_dir, split_id,
-                        radius=radius, patch_size=patch_size,
-                        n_folds=num_folds, fold_idx=FOLD_IDX)
+fpd_gd = FOEFingerprintDataset(dataset_dir, 'good')
+fpd_gd.set_split_indices(split_dir, split_id, num_folds)
+tset_gd, vset_gd = fpd_gd.get_patch_datasets(FOLD_IDX, radius, patch_size)
+
+fpd_bd = FOEFingerprintDataset(dataset_dir, 'bad')
+fpd_bd.set_split_indices(split_dir, split_id, num_folds)
+tset_bd, vset_bd = fpd_bd.get_patch_datasets(FOLD_IDX, radius, patch_size)
+
+tset = tset_gd.merge(tset_bd)
 
 if not args.no_hflip:
     tset.set_hflip(True)

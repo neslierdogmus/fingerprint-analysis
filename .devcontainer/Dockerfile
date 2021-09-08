@@ -55,6 +55,9 @@ ENV PROJECT_DIR $HOME/foe
 RUN mkdir $PROJECT_DIR
 WORKDIR $PROJECT_DIR
 
+# add src folder to PYTHONPATH
+ENV PYTHONPATH "${PYTHONPATH}:$HOME/foe/src"
+
 # build the conda environment
 ENV ENV_PREFIX $PROJECT_DIR/env
 RUN conda update --name base --channel defaults conda && \
