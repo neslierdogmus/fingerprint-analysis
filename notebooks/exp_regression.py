@@ -73,10 +73,8 @@ if args.seed is not None:
     torch.backends.cudnn.deterministic = True
     # torch.set_deterministic(True)
 
-
 FOLD_IDX = 0
 NUM_WORKERS = 4
-
 
 # %%
 # configure models to train
@@ -85,7 +83,7 @@ if model_path is None:
     model = FOEMLP(encoded_space_dim, device=device)
     done_epochs = 0
 else:
-    (model, batch_size, done_epochs, split_dir, split_id, FOLD_IDX,
+    (model, batch_size, done_epochs, splits_dir, split_id, FOLD_IDX,
      val_results) = FOEMLP.load_checkpoint(model_path, device, True)
 
     encoded_space_dim = model.input_dim
@@ -99,11 +97,11 @@ else:
 (ae, *_) = FOEAutoencoder.load_checkpoint(ae_path, 'cpu', True)
 
 fpd_gd = FOEFingerprintDataset(dataset_dir, 'good')
-fpd_gd.set_split_indices(split_dir, split_id, num_folds)
+fpd_gd.set_split_indices(splits_dir, split_id, num_folds)
 tset_gd, vset_gd = fpd_gd.get_patch_datasets(FOLD_IDX, radius, patch_size)
 
 fpd_bd = FOEFingerprintDataset(dataset_dir, 'bad')
-fpd_bd.set_split_indices(split_dir, split_id, num_folds)
+fpd_bd.set_split_indices(splits_dir, split_id, num_folds)
 tset_bd, vset_bd = fpd_bd.get_patch_datasets(FOLD_IDX, radius, patch_size)
 
 tset = tset_gd.merge(tset_bd)
@@ -186,7 +184,7 @@ for epoch in range(done_epochs+1, done_epochs+num_epochs+1):
     #               val_loss_gd, val_rmse_gd, val_loss_bd, val_rmse_bd))
 
     print('EPOCH {}/{}\ttrain loss {:.4f}\t'
-          'val loss good{:.4f}\t'
+          'val loss good {:.4f}\t'
           'val loss bad {:.4f}'
           .format(epoch, done_epochs + num_epochs, train_loss,
                   val_loss_gd, val_loss_bd))
@@ -194,10 +192,6 @@ for epoch in range(done_epochs+1, done_epochs+num_epochs+1):
     metrics['train_loss'].append(train_loss)
     metrics['val_loss_gd'].append(val_loss_gd)
     metrics['val_loss_bd'].append(val_loss_bd)
-
-    if epoch % 20 == 0:
-        model.plot_outputs(vset_gd, 5)
-        model.plot_outputs(vset_bd, 5)
 
 model.save_checkpoint(models_dir, batch_size, epoch,
                       splits_dir, split_id, FOLD_IDX)

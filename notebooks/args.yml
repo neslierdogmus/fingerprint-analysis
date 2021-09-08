@@ -1,6 +1,6 @@
 dataset_dir: ../datasets/Finger/FOESamples
 output_dir: ../results
-ae_model_name: Null
+ae_model_name: foe_autoencoder_ps032_es64_s1_f0_e0050.pt
 mlp_model_name: Null
 encoded_space_dim: 64
 radius: 64
