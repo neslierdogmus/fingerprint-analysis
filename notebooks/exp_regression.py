@@ -14,6 +14,8 @@ import torch.optim as optim
 from foe_mlp import FOEMLP
 from foe_autoencoder import FOEAutoencoder
 from foe_fingerprint_dataset import FOEFingerprintDataset
+from foe_orientation import FOEOrientation
+from foe_results import FOEResults
 
 from IPython import get_ipython
 get_ipython().run_line_magic('matplotlib', 'widget')
@@ -28,7 +30,7 @@ def init_weights(m):
 # %%
 # parse and configure the experiment parameters
 
-with open("args.yml") as f:
+with open('args.yml') as f:
     args = yaml.safe_load(f)
     args = SimpleNamespace(**args)
 
@@ -134,15 +136,15 @@ n_val_bd = len(val_loader_bd.dataset)
 # %%
 # print current status
 
-print("Using {}...".format(device))
-print("""Patch size: {}
+print('Using {}...'.format(device))
+print('''Patch size: {}
 Encoded space (input) dimension: {}
 Batch size: {}
 Learning rate: {}
 Rotation delta: {:.1f}°
 Training set size: {}
 Validation set size (good): {}
-Validation set size (bad): {}""".format(patch_size, encoded_space_dim,
+Validation set size (bad): {}'''.format(patch_size, encoded_space_dim,
                                         batch_size, learning_rate,
                                         args.delta_r * 180.0 / np.pi,
                                         n_train, n_val_gd, n_val_bd))
@@ -164,35 +166,33 @@ scheduler = optim.lr_scheduler.MultiStepLR(optimizer, [int(0.4 * num_epochs),
                                                        int(0.75 * num_epochs)],
                                            gamma=0.1)
 
+results = FOEResults()
+estimator = FOEOrientation.radians_from_sincos
+
 metrics = {'train_loss': [], 'val_loss_gd': [], 'val_loss_bd': [],
            'train_rmse': [], 'val_rmse_gd': [], 'val_rmse_bd': []}
 epoch = done_epochs
 for epoch in range(done_epochs+1, done_epochs+num_epochs+1):
-    train_loss = model.train_epoch(train_loader, loss_fn, optimizer)
-    val_loss_gd = model.val_epoch(val_loader_gd, loss_fn)
-    val_loss_bd = model.val_epoch(val_loader_bd, loss_fn)
+    train_loss = model.train_epoch(train_loader, loss_fn, optimizer, results)
+    val_loss_gd = model.val_epoch(val_loader_gd, loss_fn, optimizer, results)
+    val_loss_bd = model.val_epoch(val_loader_bd, loss_fn, optimizer, results)
     scheduler.step()
 
-    # train_rmse = np.sqrt(train_err_sqr / n_train) * 180.0 / np.pi  # in deg
-    # val_rmse_gd = np.sqrt(val_err_sqr_gd / n_val_gd) * 180.0 / np.pi
-    # val_rmse_bd = np.sqrt(val_err_sqr_bd / n_val_bd) * 180.0 / np.pi
+    rmse_list = results.compute_regression_rmse(estimator)
 
-    # print('EPOCH {}/{}\ttrain loss / rmse {:.4f} / {:.1f}°\t'
-    #       'val loss / rmse good {:.4f} / {:.1f}°\t'
-    #       'val loss / rmse bad {:.4f} / {:.1f}°'
-    #       .format(epoch + 1, done_epochs + num_epochs, train_loss,
-    #               train_rmse, val_loss_gd, val_rmse_gd, val_loss_bd,
-    #               val_rmse_bd))
-
-    print('EPOCH {}/{}\ttrain loss {:.4f}\t'
-          'val loss good {:.4f}\t'
-          'val loss bad {:.4f}'
-          .format(epoch, done_epochs + num_epochs, train_loss,
-                  val_loss_gd, val_loss_bd))
+    print('EPOCH {}/{}\ttrain loss / rmse {:.4f} / {:.1f}°\t'
+          'val loss / rmse good {:.4f} / {:.1f}°\t'
+          'val loss / rmse bad {:.4f} / {:.1f}°'
+          .format(epoch + 1, done_epochs + num_epochs, train_loss,
+                  rmse_list[0], val_loss_gd, rmse_list[2], val_loss_bd,
+                  rmse_list[3]))
 
     metrics['train_loss'].append(train_loss)
     metrics['val_loss_gd'].append(val_loss_gd)
     metrics['val_loss_bd'].append(val_loss_bd)
+    metrics['train_rmse'].append(rmse_list[0])
+    metrics['val_rmse_gd'].append(rmse_list[2])
+    metrics['val_rmse_bd'].append(rmse_list[3])
 
 model.save_checkpoint(models_dir, batch_size, epoch,
                       splits_dir, split_id, FOLD_IDX)
