@@ -17,15 +17,8 @@ from foe_fingerprint_dataset import FOEFingerprintDataset
 from foe_orientation import FOEOrientation
 from foe_results import FOEResults
 
-from IPython import get_ipython
-get_ipython().run_line_magic('matplotlib', 'widget')
-
-
-def init_weights(m):
-    if type(m) == torch.nn.Linear:
-        torch.nn.init.kaiming_uniform_(m.weight, nonlinearity='leaky_relu')
-        m.bias.data.fill_(0.1)
-
+# from IPython import get_ipython
+# get_ipython().run_line_magic('matplotlib', 'widget')
 
 # %%
 # parse and configure the experiment parameters
@@ -82,11 +75,12 @@ NUM_WORKERS = 4
 # configure models to train
 
 if model_path is None:
-    model = FOEMLP(encoded_space_dim, device=device)
+    model = FOEMLP(encoded_space_dim, device, 0, 2*np.pi)
     done_epochs = 0
 else:
     (model, batch_size, done_epochs, splits_dir, split_id, FOLD_IDX,
-     val_results) = FOEMLP.load_checkpoint(model_path, device, True)
+     val_results) = FOEMLP.load_checkpoint(model_path, device,
+                                           0, 2*np.pi, True)
 
     encoded_space_dim = model.input_dim
     print('Model is loaded from {}. Given split data, encoded space dimension,'
@@ -153,39 +147,39 @@ Validation set size (bad): {}'''.format(patch_size, encoded_space_dim,
 # configure training parameters and train
 
 
-def tanloss(y, ye):
-    return torch.mean((y[0]/y[1] - ye[0]/y[1])**2)
+def loss_fn(y, ye):
+    delta_sqr = [torch.min(torch.abs(yi-yei), 2*np.pi-torch.abs(yi-yei))
+                 for (yi, yei) in zip(y, ye)]
+    return torch.mean(torch.stack(delta_sqr))
 
 
-model = FOEMLP(encoded_space_dim, device)
-# model.apply(init_weights)
-
-loss_fn = torch.nn.MSELoss()
+# loss_fn = torch.nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-scheduler = optim.lr_scheduler.MultiStepLR(optimizer, [int(0.4 * num_epochs),
-                                                       int(0.75 * num_epochs)],
-                                           gamma=0.1)
+# scheduler = optim.lr_scheduler.MultiStepLR(optimizer,
+#                                            [int(0.4 * num_epochs),
+#                                             int(0.75 * num_epochs)],
+#                                            gamma=0.1)
 
-results = FOEResults()
 estimator = FOEOrientation.radians_from_sincos
 
 metrics = {'train_loss': [], 'val_loss_gd': [], 'val_loss_bd': [],
            'train_rmse': [], 'val_rmse_gd': [], 'val_rmse_bd': []}
 epoch = done_epochs
 for epoch in range(done_epochs+1, done_epochs+num_epochs+1):
+    results = FOEResults()
+
     train_loss = model.train_epoch(train_loader, loss_fn, optimizer, results)
-    val_loss_gd = model.val_epoch(val_loader_gd, loss_fn, optimizer, results)
-    val_loss_bd = model.val_epoch(val_loader_bd, loss_fn, optimizer, results)
-    scheduler.step()
+    val_loss_gd = model.val_epoch(val_loader_gd, loss_fn, results)
+    val_loss_bd = model.val_epoch(val_loader_bd, loss_fn, results)
+    # scheduler.step()
 
     rmse_list = results.compute_regression_rmse(estimator)
 
-    print('EPOCH {}/{}\ttrain loss / rmse {:.4f} / {:.1f}°\t'
-          'val loss / rmse good {:.4f} / {:.1f}°\t'
-          'val loss / rmse bad {:.4f} / {:.1f}°'
-          .format(epoch + 1, done_epochs + num_epochs, train_loss,
-                  rmse_list[0], val_loss_gd, rmse_list[2], val_loss_bd,
-                  rmse_list[3]))
+    print('EPOCH {}/{}\ttrain loss/rmse {:.4f}/{:.1f}° - '
+          'val good loss/rmse {:.4f}/{:.1f}° - '
+          'val bad loss/rmse {:.4f}/{:.1f}°'
+          .format(epoch, done_epochs + num_epochs, train_loss, rmse_list[0],
+                  val_loss_gd, rmse_list[2], val_loss_bd, rmse_list[3]))
 
     metrics['train_loss'].append(train_loss)
     metrics['val_loss_gd'].append(val_loss_gd)
@@ -200,6 +194,7 @@ model.save_checkpoint(models_dir, batch_size, epoch,
 # %%
 # plot results
 
+results.plot_hist()
 plt.figure()
 plt.semilogy(metrics['train_loss'], label='Train')
 plt.semilogy(metrics['val_loss_gd'], label='Valid_Good')

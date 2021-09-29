@@ -1,19 +1,19 @@
 dataset_dir: ../datasets/Finger/FOESamples
 output_dir: ../results
 ae_model_name: foe_autoencoder_ps032_es64_s1_f0_e0050.pt
-mlp_model_name: Null
+mlp_model_name: foe_mlp_inp064_s1_f0_e0100.pt
 encoded_space_dim: 64
 radius: 64
 patch_size: 32
 split_id: 1
 num_epochs: 50
-batch_size: 128
-learning_rate: 0.001
+batch_size: 64
+learning_rate: 0.0001
 use_cpu: False
 seed: 222
 num_folds: 5
-train_with_bad: False
+train_with_bad: True
 no_hflip: False
-delta_r: 0.1
+delta_r: 0
 
 #foe_autoencoder_ps032_es64_s0_f0_e0499.pt
