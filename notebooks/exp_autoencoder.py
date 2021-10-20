@@ -44,8 +44,8 @@ if args.ae_model_name is not None:
     model_path = models_dir.joinpath(args.ae_model_name)
 
 encoded_space_dim = args.encoded_space_dim
-radius = args.radius
 patch_size = args.patch_size
+radius = patch_size * 2
 split_id = args.split_id
 num_folds = args.num_folds
 
