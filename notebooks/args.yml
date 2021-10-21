@@ -5,16 +5,16 @@ num_folds: 5
 patch_size: 32
 batch_size: 64
 no_hflip: True
-delta_r: 0.40
+delta_r: 90
 use_cpu: False
 seed: 0
 
 encoded_space_dim: 64
-train_with_bad: False
-ae_num_epochs: 50
+train_with_bad: True
+ae_num_epochs: 25
 ae_learning_rate: 0.001
 ae_continue_training: False
 
 mlp_num_epochs: 200
-mlp_learning_rate: 0.0001
+mlp_learning_rate: 0.00001
 mlp_continue_training: False

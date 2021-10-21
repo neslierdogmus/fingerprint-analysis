@@ -16,6 +16,8 @@ from foe_autoencoder import FOEAutoencoder
 from foe_fingerprint_dataset import FOEFingerprintDataset
 from foe_results import FOEResults
 
+from time import time
+
 # from IPython import get_ipython
 # get_ipython().run_line_magic('matplotlib', 'widget')
 
@@ -82,7 +84,7 @@ device = 'cuda' if use_gpu else 'cpu'
 print('Using {}...'.format(device))
 print('Patch size: {}'.format(patch_size))
 print('Batch size: {}'.format(batch_size))
-print('Rotation delta: {:.1f}°'.format(args.delta_r * 180.0 / np.pi))
+print('Rotation delta: {:.1f}°'.format(args.delta_r))
 
 if args.seed is not None:
     seed = int(args.seed)
@@ -139,6 +141,8 @@ for fold_id in range(num_folds):
     if args.delta_r > 0.0:
         ae_tset.set_delta_r(args.delta_r)
         mlp_tset.set_delta_r(args.delta_r)
+        vset_gd.set_delta_r(args.delta_r)
+        vset_bd.set_delta_r(args.delta_r)
 
     ae_name = 'foe_ae_ps{:03d}_es{:02d}_s{}_e{:04d}_f{}.pt'
     if ae_continue_training:
@@ -216,6 +220,7 @@ for fold_id in range(num_folds):
         (mlp, batch_size, done_epochs, splits_dir, split_id, fold_id,
          val_results) = FOEMLP.load_checkpoint(mlp_path, device, 0, np.pi,
                                                True)
+        # mlp._set_encoder(ae.encoder)
     else:
         mlp = FOEMLP(encoded_space_dim, device, 0, np.pi)
         done_epochs = 0
@@ -239,7 +244,7 @@ for fold_id in range(num_folds):
                        'train_rmse': [], 'val_rmse_gd': [], 'val_rmse_bd': []}
         epoch = done_epochs
         for epoch in range(done_epochs+1, done_epochs+mlp_num_epochs+1):
-
+            ts = time()
             train_loss = mlp.train_epoch(mlp_train_loader, loss_fn, optimizer)
             _ = mlp.val_epoch(mlp_train_loader, loss_fn, results, False)
             val_loss_gd = mlp.val_epoch(val_loader_gd, loss_fn, results)
@@ -269,7 +274,9 @@ for fold_id in range(num_folds):
                   'val rmse good/bad {:.1f}°/{:.1f}°'
                   .format(rmse_train_gd, rmse_train_bd,
                           rmse_val_gd, rmse_val_bd))
-
+            results.plot_hist()
+            te = time()
+            print('Epoch took %2.4f sec' % (te-ts))
         plot_loss(mlp_metrics)
         mlp.save_checkpoint(mlp_path, batch_size, epoch, splits_dir,
                             split_id, fold_id)
