@@ -12,7 +12,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.optim as optim
 
-from foe_autoencoder import FOEAutoencoder
+from foe_ae import FOEAE
 from foe_fingerprint_dataset import FOEFingerprintDataset
 
 from IPython import get_ipython
@@ -74,11 +74,11 @@ NUM_WORKERS = 4
 # configure models to train
 
 if model_path is None:
-    model = FOEAutoencoder(patch_size, encoded_space_dim, device=device)
+    model = FOEAE(patch_size, encoded_space_dim, device=device)
     done_epochs = 0
 else:
     (model, batch_size, done_epochs, splits_dir, split_id, FOLD_IDX,
-     val_results) = FOEAutoencoder.load_checkpoint(model_path, device, True)
+     val_results) = FOEAE.load_checkpoint(model_path, device, True)
 
     patch_size = model.patch_size
     encoded_space_dim = model.encoded_space_dim
@@ -105,10 +105,8 @@ if args.train_with_bad:
 else:
     tset = tset_gd
 
-if not args.no_hflip:
-    tset.set_hflip(True)
-if args.delta_r > 0.0:
-    tset.set_delta_r(args.delta_r)
+tset.set_hflip(args.hfilp)
+tset.rotate(args.rotate)
 
 train_loader = DataLoader(tset, batch_size=batch_size,
                           num_workers=NUM_WORKERS,
@@ -129,12 +127,10 @@ print("""Patch size: {}
 Encoded space dimension: {}
 Batch size: {}
 Learning rate: {}
-Rotation delta: {:.1f}°
 Training set size: {}
 Validation set size (good): {}
 Validation set size (bad): {}""".format(patch_size, encoded_space_dim,
                                         batch_size, learning_rate,
-                                        args.delta_r * 180.0 / np.pi,
                                         len(train_loader.dataset),
                                         len(val_loader_gd.dataset),
                                         len(val_loader_bd.dataset)))

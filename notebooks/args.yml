@@ -4,17 +4,19 @@ split_id: 2
 num_folds: 5
 patch_size: 32
 batch_size: 64
-no_hflip: True
-delta_r: 90
+hflip: True
+rotate: True
 use_cpu: False
 seed: 0
+
+num_classes: 36
+num_epochs: 10
+learning_rate: 0.001
+continue_training: False
+approach: cnn
 
 encoded_space_dim: 64
 train_with_bad: True
 ae_num_epochs: 25
 ae_learning_rate: 0.001
 ae_continue_training: False
-
-mlp_num_epochs: 200
-mlp_learning_rate: 0.00001
-mlp_continue_training: False

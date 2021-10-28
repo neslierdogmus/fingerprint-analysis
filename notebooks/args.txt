@@ -1,4 +1,0 @@
-verbose seed base_path patch_size n_folds n_classes without_bad no_shuffle no_hflip delta_r output_dir n_epochs batch_size learning_rate model_path cpu   
-bool int str int int int bool bool bool float str int int float str bool
-True None ../datasets/Finger/FOESamples 32 10 2 True False False 0.1 ../results 200 128 0.01 None True
-True None ../datasets/Finger/FOESamples 32 10 2 True False False 0.1 ../results 200 128 0.01 None True
