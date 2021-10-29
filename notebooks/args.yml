@@ -10,13 +10,11 @@ use_cpu: False
 seed: 0
 
 num_classes: 36
-num_epochs: 10
+num_epochs: 5
 learning_rate: 0.001
-continue_training: False
-approach: cnn
+approach: ae_mlp
 
 encoded_space_dim: 64
 train_with_bad: True
-ae_num_epochs: 25
+ae_num_epochs: 10
 ae_learning_rate: 0.001
-ae_continue_training: False

@@ -1,12 +1,10 @@
-from matplotlib import pyplot as plt
-
-from torch.utils.data import DataLoader
 import torch
-import torch.optim as optim
+from torch.utils.data import DataLoader
 
 from foe_ae import FOE_AE
 from foe_mlp import FOE_MLP
 from foe_cnn import FOE_CNN
+from foe_loss_history import FOELossHistory
 
 from time import time
 
@@ -73,165 +71,107 @@ def create_dataloaders(fpd_gd, fpd_bd, fold_id, num_workers, use_gpu, args):
             val_loader_bd, val_loader)
 
 
-def plot_loss(metrics):
-    plt.figure()
-    plt.semilogy(metrics['train_loss'], label='Train')
-    plt.semilogy(metrics['val_loss_gd'], label='Valid_Good')
-    plt.semilogy(metrics['val_loss_bd'], label='Valid_Bad')
-    plt.xlabel('Epoch')
-    plt.ylabel('Average Loss')
-    plt.grid()
-    plt.legend()
-    plt.title('loss')
-    plt.show()
+def load_model(model_path, model_type, device, verbose=True):
+    if model_type == 'ae':
+        FOE_MODEL = FOE_AE
+    elif model_type == 'mlp':
+        FOE_MODEL = FOE_MLP
+    elif model_type == 'cnn':
+        FOE_MODEL = FOE_CNN
+    chk_dict = torch.load(model_path)
+    mstate = chk_dict['mstate']
+    inp_dim = chk_dict['inp-dim']
+    out_dim = chk_dict['out-dim']
+
+    model = FOE_MODEL(model_path, inp_dim, out_dim, device)
+    model.load_state_dict(mstate)
+
+    if verbose:
+        print('Loaded model from {}.'.format(model_path))
+    return model
 
 
-def train_autoencoder(models_dir, fold_id, device, ae_train_loader,
-                      val_loader_gd, val_loader_bd, args):
-    if not args.ae_continue_training:
-        ae_name = 'foe_ae_in{:03d}_out{:03d}_e{:04d}_s{}_f{}.pt'
-        ae_name = ae_name.format(args.patch_size, args.encoded_space_dim,
-                                 args.ae_num_epochs, args.split_id, fold_id)
-        ae_path = models_dir.joinpath(ae_name)
-        if ae_path.exists():
-            ae, val_results = FOE_AE.load_checkpoint(ae_path, device)
-            done_epochs = args.ae_num_epochs
-        else:
-            ae = FOE_AE(args.patch_size, args.encoded_space_dim, device)
-            done_epochs = 0
+def save_model(model, verbose=True):
+    chk_dict = {'mstate': model.state_dict(),
+                'inp-dim': model.inp_dim,
+                'out-dim': model.out_dim}
+    torch.save(chk_dict, model.path)
+    if verbose:
+        print('Saved model to {}'.format(model.path))
+
+
+def init_model(model_type, models_dir, file_id, fold_id, device, args):
+    if model_type == 'ae':
+        FOE_MODEL = FOE_AE
+        input = args.patch_size
+        output = args.encoded_space_dim
+    elif model_type == 'mlp':
+        FOE_MODEL = FOE_MLP
+        input = args.encoded_space_dim
+        output = args.num_classes
+    elif model_type == 'cnn':
+        FOE_MODEL = FOE_CNN
+        input = args.patch_size
+        output = args.num_classes
+
+    model_name = 'foe_{}_{}_f{}.pt'.format(model_type, file_id, fold_id)
+    metrics_name = 'foe_{}_{}_f{}.mt'.format(model_type, file_id, fold_id)
+    model_path = models_dir.joinpath(model_name)
+    metrics_path = models_dir.joinpath(metrics_name)
+    if model_path.exists() and metrics_path.exists():
+        model = load_model(model_path, model_type, device)
+        metrics = FOELossHistory.load(metrics_path)
     else:
-        ae_name = 'foe_ae_in{:03d}_out{:03d}_e{}_s{}v_f{}.pt'
-        ae_name = ae_name.format(args.patch_size, args.encoded_space_dim,
-                                 '*', args.split_id, fold_id)
-        file_list = list(models_dir.glob(ae_name))
-        if file_list:
-            ae_path = file_list[-1]
-            ae, val_results = FOE_AE.load_checkpoint(ae_path, device)
-            done_epochs = int(str(ae_path).split('_')[-3][1:])
-            args.ae_num_epochs = args.ae_num_epochs + done_epochs
-        else:
-            ae = FOE_AE(args.patch_size, args.encoded_space_dim, device)
-            done_epochs = 0
-
-    loss_fn = torch.nn.MSELoss()
-    optimizer = optim.Adam(ae.parameters(), lr=args.ae_learning_rate)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer,
-                                               [int(0.4 * args.ae_num_epochs),
-                                                int(0.7 * args.ae_num_epochs)],
-                                               gamma=0.1)
-    ae_metrics = {'train_loss': [], 'val_loss_gd': [], 'val_loss_bd': []}
-    epoch = done_epochs
-    for epoch in range(done_epochs+1, args.ae_num_epochs+1):
-        train_loss = ae.train_epoch(ae_train_loader, loss_fn, optimizer)
-        val_loss_gd = ae.val_epoch(val_loader_gd, loss_fn)
-        val_loss_bd = ae.val_epoch(val_loader_bd, loss_fn)
-        scheduler.step()
-
-        print('EPOCH {}/{}\t'
-              'Losses for train/good val/bad val: {:.4f} / {:.4f} / {:.4f}'
-              .format(epoch, args.ae_num_epochs, train_loss, val_loss_gd,
-                      val_loss_bd))
-
-        ae_metrics['train_loss'].append(train_loss)
-        ae_metrics['val_loss_gd'].append(val_loss_gd)
-        ae_metrics['val_loss_bd'].append(val_loss_bd)
-
-        if epoch == args.ae_num_epochs:
-            ae_name = 'foe_ae_in{:03d}_out{:03d}_e{:04d}_s{}_f{}.pt'
-            ae_name = ae_name.format(args.patch_size, args.encoded_space_dim,
-                                     epoch, args.split_id, fold_id)
-            ae_path = models_dir.joinpath(ae_name)
-            ae.save_checkpoint(ae_path)
-
-            plot_loss(ae_metrics)
-    ae.plot_outputs(val_loader_gd.dataset, 5)
-    ae.plot_outputs(val_loader_bd.dataset, 5)
-
-    return ae
+        model = FOE_MODEL(model_path, input, output, device)
+        metrics = FOELossHistory(metrics_path)
+    return model, metrics
 
 
-def initialize_mlp(models_dir, fold_id, device, args):
-    if not args.continue_training:
-        mlp_name = 'foe_mlp_in{:03d}_out{:03d}_e{:04d}_s{}_f{}.pt'
-        mlp_name = mlp_name.format(args.encoded_space_dim, args.num_classes,
-                                   args.num_epochs, args.split_id, fold_id)
-        mlp_path = models_dir.joinpath(mlp_name)
-
-        if mlp_path.exists():
-            mlp, results = FOE_MLP.load_checkpoint(mlp_path, device)
-            done_epochs = args.num_epochs
-            mlp_path = None
-        else:
-            mlp = FOE_MLP(args.encoded_space_dim, args.num_classes, device)
-            done_epochs = 0
-    else:
-        mlp_name = 'foe_mlp_in{:03d}_out{:03d}_e{}_s{}_f{}.pt'
-        mlp_name = mlp_name.format(args.encoded_space_dim, args.num_classes,
-                                   '*', args.split_id, fold_id)
-        file_list = list(models_dir.glob(mlp_name))
-        if file_list:
-            mlp_path = file_list[-1]
-            mlp, results = FOE_MLP.load_checkpoint(mlp_path, device)
-            done_epochs = int(str(mlp_path).split('_')[-3][1:])
-            args.num_epochs = args.num_epochs + done_epochs
-        else:
-            mlp = FOE_MLP(args.encoded_space_dim, args.num_classes)
-            done_epochs = 0
-
-        mlp_name = 'foe_mlp_in{:03d}_out{:03d}_e{:04d}_s{}_f{}.pt'
-        mlp_name = mlp_name.format(args.encoded_space_dim, args.num_classes,
-                                   args.num_epochs, args.split_id, fold_id)
-        mlp_path = models_dir.joinpath(mlp_name)
-
-    return mlp, done_epochs, args.num_epochs, mlp_path, results
+def train_epoch(model, dataloader, loss_fn, optimizer,
+                encoder=None, is_ae=False, results=None):
+    model.train()
+    total_loss = 0.0
+    for xi, yi, gt_in_radians, index in dataloader:
+        x = y = xi.to(model.device)
+        if not is_ae:
+            y = yi.to(model.device)
+        optimizer.zero_grad()
+        if encoder is not None:
+            with torch.no_grad():
+                encoder.eval()
+                x = encoder(x)
+        y_out = model(x)
+        loss = loss_fn(y_out, y)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item()
+        if results is not None:
+            for idx, gt, yo in zip(index, gt_in_radians, y_out.cpu()):
+                patch = dataloader.dataset.patches[idx.item()]
+                results.append(patch, False, gt.item(),
+                               yo.detach().numpy())
+    return total_loss / len(dataloader)
 
 
-def initialize_cnn(models_dir, fold_id, device, args):
-    if not args.continue_training:
-        cnn_name = 'foe_cnn_in{:03d}_out{:03d}_e{:04d}_s{}_f{}.pt'
-        cnn_name = cnn_name.format(args.patch_size, args.num_classes,
-                                   args.num_epochs, args.split_id, fold_id)
-        cnn_path = models_dir.joinpath(cnn_name)
+def val_epoch(model, dataloader, loss_fn,
+              is_ae=False, encoder=None, results=None, is_tr=False):
+    with torch.no_grad():
+        model.eval()
+        total_loss = 0.0
+        for xi, yi, gt_in_radians, index in dataloader:
+            x = y = xi.to(model.device)
+            if not is_ae:
+                y = yi.to(model.device)
+            if encoder is not None:
+                encoder.eval()
+                x = encoder(x)
+            y_out = model(x)
+            loss = loss_fn(y_out, y)
+            total_loss += loss.item()
+            if results is not None:
+                for idx, gt, yo in zip(index, gt_in_radians, y_out.cpu()):
+                    patch = dataloader.dataset.patches[idx.item()]
+                    results.append(patch, not is_tr, gt.item(),
+                                   yo.detach().numpy())
 
-        if cnn_path.exists():
-            cnn, results = FOE_CNN.load_checkpoint(cnn_path, device)
-            done_epochs = args.num_epochs
-            cnn_path = None
-        else:
-            cnn = FOE_CNN(args.patch_size, args.num_classes, device)
-            done_epochs = 0
-    else:
-        cnn_name = 'foe_cnn_in{:03d}_out{:03d}_e{}_s{}_f{}.pt'
-        cnn_name = cnn_name.format(args.patch_size, args.num_classes,
-                                   '*', args.split_id, fold_id)
-        file_list = list(models_dir.glob(cnn_name))
-        if file_list:
-            cnn_path = file_list[-1]
-            cnn, results = FOE_CNN.load_checkpoint(cnn_path, device)
-            done_epochs = int(str(cnn_path).split('_')[-3][1:])
-            args.num_epochs = args.num_epochs + done_epochs
-        else:
-            cnn = FOE_CNN(args.patch_size, args.num_classes, device)
-            done_epochs = 0
-
-        cnn_name = 'foe_cnn_in{:03d}_out{:03d}_e{:04d}_s{}_f{}.pt'
-        cnn_name = cnn_name.format(args.patch_size,
-                                   args.num_classes, args.num_epochs,
-                                   args.split_id, fold_id)
-        cnn_path = models_dir.joinpath(cnn_name)
-
-    return cnn, done_epochs, args.num_epochs, cnn_path, results
-
-
-def train(model, train_loader, val_loader_gd, val_loader_bd, loss_fn,
-          optimizer, scheduler, results, metrics):
-    train_loss = model.train_epoch(train_loader, loss_fn, optimizer)
-    val_loss_gd = model.val_epoch(val_loader_gd, loss_fn, results)
-    val_loss_bd = model.val_epoch(val_loader_bd, loss_fn, results)
-    scheduler.step()
-
-    metrics['train_loss'].append(train_loss)
-    metrics['val_loss_gd'].append(val_loss_gd)
-    metrics['val_loss_bd'].append(val_loss_bd)
-
-    return train_loss, val_loss_gd, val_loss_bd
+    return total_loss / len(dataloader)
