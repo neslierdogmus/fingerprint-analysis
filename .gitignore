@@ -131,3 +131,4 @@ dmypy.json
 # another repo
 foe/
 results/models
+results/logs
