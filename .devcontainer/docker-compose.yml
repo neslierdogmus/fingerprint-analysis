@@ -12,9 +12,9 @@ services:
       - NVIDIA_DRIVER_CAPABILITIES=all
     volumes:
       - ../notebooks:/home/csigb/foe/notebooks
-      - ../foe/src:/home/csigb/foe/src
+      - ../src:/home/csigb/foe/src
       - ../results:/home/csigb/foe/results
-      - ~/Desktop/Datasets:/home/csigb/foe/datasets
+      - /media/nesli/storage/Datasets:/home/csigb/foe/datasets
     init: true
     stdin_open: true
     tty: true
