@@ -1,60 +1,66 @@
 #!/usr/bin/env python3
-import sys
 import random
-from argparse import ArgumentParser
-from pathlib import Path
-
-import numpy as np
-
 import PIL
 
 import torch
 from torch.utils.data import Dataset
-
-from torchvision import transforms
-import torchvision.transforms.functional as TF
-
-from .foe_fingerprint import FOEFingerprint
+import torchvision.transforms.functional as tf
 
 
 class FOEPatchDataset(Dataset):
-    def __init__(self, patches, n_classes, patch_size):
+    def __init__(self, patches, patch_size, n_classes=1):
         super(FOEPatchDataset).__init__()
-        self.patches = patches
-        self.n_classes = n_classes
+        self.patches = patches.copy()
         self.patch_size = patch_size
+        self.n_classes = n_classes
         self._hflip = False
-        self._delta_r = None
+        self.rotate = False
+        self._encoder = None
+        self._decoder = None
         self.images = sorted(set(p.filename for p in patches))
         self.is_image_good = {image: False for image in self.images}
         for p in self.patches:
-            if p.is_good:
+            if p.fp_type == 'good':
                 self.is_image_good[p.filename] = True
-        tfm = transforms.Compose([transforms.ToTensor(),
-                                  transforms.CenterCrop(patch_size)])
-        self.transforms = tfm
 
     def __getitem__(self, index):
         foe_patch = self.patches[index]
-        x = foe_patch.patch
-        x = self.transforms(x)
+        x = torch.from_numpy(foe_patch.patch)/255
+        x = torch.unsqueeze(x, 0)
 
         ori = foe_patch.ori
 
         if self._hflip and random.random() >= 0.5:
-            x = TF.hflip(x)
+            x = tf.hflip(x)
             ori = ori.hflipped()
 
-        if self._delta_r is not None:
-            r = random.uniform(-self._delta_r, self._delta_r)
-            x = TF.rotate(x, r,
-                          resample=PIL.Image.BILINEAR)
+        if self.rotate:
+            new_angle = random.uniform(0, 180)
+            r = new_angle - ori.degrees()
+            x = tf.rotate(x, r, resample=PIL.Image.BILINEAR)
             ori = ori.rotated(r)
 
-        # target = ori.class_id(self.n_classes)
-        gt_in_radians = ori.radians()
+        x = tf.center_crop(x, self.patch_size)
+        # x = tf.normalize(x, [0], [1])
 
-        return x, torch.FloatTensor([np.sin(gt_in_radians), np.cos(gt_in_radians)]), gt_in_radians
+        if self._encoder is not None:
+            self._encoder.eval()
+            with torch.no_grad():
+                x = torch.unsqueeze(x, 0)
+                x = self._encoder(x)
+                if self._decoder:
+                    x = self._decoder(x)
+                else:
+                    x = x.squeeze(0)
+
+        gt_in_radians = ori.radians()
+        if self.n_classes == 1:
+            y = gt_in_radians.float()
+        else:
+            # y = ori.class_id(self.n_classes)
+            y = ori.ordinal_code(self.n_classes)
+
+        return x, y, gt_in_radians, index
 
     def __len__(self):
         return len(self.patches)
@@ -62,58 +68,44 @@ class FOEPatchDataset(Dataset):
     def set_hflip(self, value=True):
         self._hflip = value
 
-    def set_delta_r(self, theta_in_radians):
-        self._delta_r = theta_in_radians
+    def set_rotate(self, rotate):
+        self.rotate = rotate
 
-    @classmethod
-    def trainval_for_cv(cls, fp_list, n_classes, patch_size, n_folds, fold):
-        RADIUS = patch_size
+    def set_encoder(self, encoder):
+        self._encoder = encoder
 
-        # split based on fingerprints not patches.  We run numpy array split on
-        # indices rather than the actual list since otherwise the created numpy
-        # object array has random ordering implicitly shuffling fingerprints.
-        n_fingerprints = len(fp_list)
-        fp_splits = np.array_split(range(n_fingerprints), n_folds)
-        train_patches = []
-        val_patches = []
-        for idx in range(n_folds):
-            if idx == fold:
-                split = val_patches
-            else:
-                split = train_patches
-            for fp_idx in fp_splits[idx]:
-                split.extend(fp_list[fp_idx].to_patches(RADIUS))
+    def set_decoder(self, decoder):
+        self._decoder = decoder
 
-        train_dset = FOEPatchDataset(train_patches, n_classes, patch_size)
-        val_dset = FOEPatchDataset(val_patches, n_classes, patch_size)
-        return train_dset, val_dset
+    def merge(self, pd):
+        new_ds = FOEPatchDataset(self.patches, self.patch_size, self.n_classes)
+        new_ds.patches += pd.patches
+        new_ds.images += pd.images
+        new_ds.is_image_good.update(pd.is_image_good)
+        return new_ds
 
-    @classmethod
-    def trainval_from_split(cls, fp_list, n_classes,
-                            patch_size, train_images):
-        RADIUS = patch_size
 
-        train_patches = []
-        val_patches = []
-        for fp in fp_list:
-            if fp.filename in train_images:
-                train_patches.extend(fp.to_patches(RADIUS))
-            else:
-                val_patches.extend(fp.to_patches(RADIUS))
-        train_dset = FOEPatchDataset(train_patches, n_classes, patch_size)
-        val_dset = FOEPatchDataset(val_patches, n_classes, patch_size)
-        return train_dset, val_dset
-    
-    
 if __name__ == '__main__':
+    import sys
+    import os
+    from argparse import ArgumentParser
+    from pathlib import Path
+
+    sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+    from foe_fingerprint_dataset import FOEFingerprintDataset
+
     parser = ArgumentParser(description='Fingerprint dataset tests')
     parser.add_argument('-b', '--base-path', dest='base_path',
-                        default='/opt/data/FOESamples', metavar='BASEPATH',
+                        default='../datasets/Finger/FOESamples',
+                        metavar='BASEPATH',
                         help='root directory for dataset files')
     parser.add_argument('-s', '--patch_size', dest='patch_size',
                         default=32, type=int, metavar='S',
                         help='process fingerprint patches of size SxS')
-    parser.add_argument('-n', '--n-folds', dest='n_folds',
+    parser.add_argument('-nc', '--n-classes', dest='n_classes',
+                        default=32, type=int, metavar='Nc',
+                        help='number of classes')
+    parser.add_argument('-nf', '--n-folds', dest='n_folds',
                         default=5, type=int, metavar='Nf',
                         help='number of folds')
     parser.add_argument('--no-shuffle', dest='no_shuffle',
@@ -124,27 +116,26 @@ if __name__ == '__main__':
 
     base_path = Path(args.base_path)
     patch_size = args.patch_size
+    n_classes = args.n_classes
     n_folds = args.n_folds
 
-    fp_list = FOEFingerprint.load_index_file(base_path.joinpath('Good'),
-                                             'index.txt', True)
-    fp_list.extend(FOEFingerprint.load_index_file(base_path.joinpath('Bad'),
-                                                  'index.txt', False))
-    print('Loaded {} fingerprints.'.format(len(fp_list)))
+    fpd_gd = FOEFingerprintDataset(base_path, 'good', n_folds)
+    print('Created a {} fingerprint dataset with {} fingerprints'
+          .format(fpd_gd.fp_type, len(fpd_gd)))
 
-    if not args.no_shuffle:
-        random.shuffle(fp_list)
-        print('Randomized splits.')
+    fpd_bd = FOEFingerprintDataset(base_path, 'bad', n_folds)
+    print('Created a {} fingerprint dataset with {} fingerprints'
+          .format(fpd_bd.fp_type, len(fpd_bd)))
 
     for f in range(n_folds):
-        tset, vset = FOEPatchDataset.trainval_for_cv(fp_list, 8,
-                                                     patch_size,
-                                                    n_folds, f)
-        print("""Fold {}/{}:
-   {} training examples from images:
-        {}
-   {} validation examples from images:
-        {}""".format(f+1, n_folds,
-                     len(tset), tset.images,
-                     len(vset), vset.images))
+        tset_gd, vset_gd = fpd_gd.getPatchDatasets(f, patch_size,
+                                                   patch_size, n_classes)
+        tset_bd, vset_bd = fpd_bd.getPatchDatasets(f, patch_size,
+                                                   patch_size, n_classes)
+
+        print('''Fold {}/{}
+        Good: {} training and {} validation patches
+        Bad:  {} training and {} validation patches'''
+              .format(f+1, n_folds, len(tset_gd), len(vset_gd),
+                      len(tset_bd), len(vset_bd), ))
         print('-' * 80)

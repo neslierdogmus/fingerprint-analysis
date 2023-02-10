@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 import sys
-import random
 from argparse import ArgumentParser
 from pathlib import Path
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class FOEConvNet(nn.Module):
@@ -15,7 +13,7 @@ class FOEConvNet(nn.Module):
 
         self.n_classes = n_classes
         self.patch_size = patch_size
-        
+
         self.cnn_layers = nn.Sequential(
             # Defining a 2D convolution layer
             nn.Conv2d(1, 64, kernel_size=5, stride=1, padding=2),
@@ -44,8 +42,8 @@ class FOEConvNet(nn.Module):
             nn.BatchNorm1d(64),
             nn.ReLU(inplace=True),
             nn.Dropout(p=0.2),
-            nn.Linear(32, self.n_classes),
-            nn.Hardtanh(min_val=-1,max_val=1)
+            nn.Linear(64, self.n_classes),
+            nn.ReLU(inplace=True)
         )
 
     def forward(self, x):
@@ -53,21 +51,29 @@ class FOEConvNet(nn.Module):
         x = x.view(x.size(0), -1)
         x = self.linear_layers(x)
         return x
-    
-    def init_weights(self,m):
+
+    def init_weights(self, m):
         if type(m) == nn.Linear:
-            nn.init.kaiming_uniform_(m.weight, nonlinearity='leaky_relu')
+            nn.init.kaiming_uniform_(m.weight, nonlinearity='relu')
             m.bias.data.fill_(0.01)
 
 
 if __name__ == '__main__':
+    import os
+
     from torchvision.transforms import ToTensor
-    from foe_fingerprint import FOEFingerprint
+
+    sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+    from foe_fingerprint_dataset import FOEFingerprintDataset
 
     parser = ArgumentParser(description='Fingerprint dataset tests')
     parser.add_argument('-b', '--base-path', dest='base_path',
-                        default='/opt/data/FOESamples', metavar='BASEPATH',
+                        default='../datasets/Finger/FOESamples',
+                        metavar='BASEPATH',
                         help='root directory for dataset files')
+    parser.add_argument('-r', '--radius', dest='radius',
+                        default=16, type=int, metavar='R',
+                        help='radius for patch extraction')
     parser.add_argument('-s', '--patch_size', dest='patch_size',
                         default=32, type=int, metavar='S',
                         help='process fingerprint patches of size SxS')
@@ -77,20 +83,22 @@ if __name__ == '__main__':
     args = parser.parse_args(sys.argv[1:])
 
     base_path = Path(args.base_path)
+    radius = args.radius
     patch_size = args.patch_size
     n_classes = args.n_classes
 
-    dset = FOEFingerprint.load_index_file(base_path.joinpath('Good'),
-                                          'index.txt', True)
-    print('Loaded {} fingerprints.'.format(len(dset)))
-    random.shuffle(dset)
-    print('Randomized fingerprints.')
+    fpd_gd = FOEFingerprintDataset(base_path, 'good', 5)
+    print('Created a {} fingerprint dataset with {} fingerprints'.
+          format(fpd_gd.fp_type, len(fpd_gd)))
 
-    patch = dset[0].to_patches(patch_size//2)[0].patch
+    tset_gd, vset_gd = fpd_gd.get_patch_datasets(0, radius, patch_size,
+                                                 n_classes)
+    patch = tset_gd.patches[0].patch
 
     x = ToTensor()(patch)
     x = torch.unsqueeze(x, 0)
-    print(x, x.shape)
     model = FOEConvNet(patch_size, n_classes)
+    model.eval()
     y = model(x)
+    print(x, x.shape)
     print(y, y.shape)
