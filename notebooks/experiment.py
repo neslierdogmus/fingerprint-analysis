@@ -11,10 +11,10 @@ from foe_fingerprint_dataset import FOEFingerprintDataset
 from foe_orientation import FOEOrientation
 from foe_results import FOEResults
 from functions import (create_dataloaders, init_model, train_epoch, val_epoch,
-                       save_model)
+                       save_model, eval_model)
 
-# from IPython import get_ipython
-# get_ipython().run_line_magic('matplotlib', 'widget')
+from IPython import get_ipython
+get_ipython().run_line_magic('matplotlib', 'widget')
 
 
 def angle_loss(ye, y):
@@ -33,21 +33,6 @@ def misclassification_cost_loss(ye, y):
     return torch.sum(torch.mean(costs*ye_lp, 1))
 
 
-def ordinal_loss(ye, y):
-    # Create out modified target with [batch_size, num_labels] shape
-    modified_y = torch.zeros_like(ye)
-
-    # Fill in ordinal target function, i.e. 0 -> [1,0,0,...]
-    for i, target in enumerate(y):
-        if target < 9:
-            modified_y[i, 0:target+1] = 1
-        else:
-            modified_y[i, 0:18-target] = 1
-            modified_y[i, -1] = 1
-
-    return torch.nn.MSELoss(reduction='none')(ye, modified_y).sum(axis=1).sum()
-
-
 # %%
 # parameters
 dataset_dir = '../datasets/Finger/FOESamples'
@@ -61,11 +46,11 @@ batch_size = 32
 
 hflip = True
 rotate = True
-num_epochs = 500
+num_epochs = 100
 learning_rate = 0.001
 
 patch_size = 64
-num_classes = 90
+num_classes = 30
 
 encoded_space_dim = 512
 train_with_bad = True
@@ -147,17 +132,18 @@ fpd_bd.set_split_indices(splits_dir, split_id, num_folds)
 fpd_sn = FOEFingerprintDataset(dataset_dir, 'synth')
 
 RMSE = []
+RMSE_img = []
 for fold_id in range(num_folds):
     print('* '*40)
     print('Experiments for fold {} starts...'.format(fold_id))
 
-    ae_train_loader = train_loader = val_loader = None
-    val_loader_gd = val_loader_bd = None
+    ae_tra_ldr = tra_ldr = val_ldr = None
+    tra_ldr_gd = tra_ldr_bd = None
+    val_ldr_gd = val_ldr_bd = None
 
-    (ae_train_loader, train_loader_gd, train_loader_bd, train_loader,
-     val_loader_gd, val_loader_bd, val_loader) = create_dataloaders(fpd_gd, fpd_bd, fpd_sn, fold_id, NUM_WORKERS, use_gpu, args)
-    num_val_gd = len(val_loader_gd.dataset)
-    num_val_bd = len(val_loader_bd.dataset)
+    (ae_tra_ldr, tra_ldr_gd, tra_ldr_bd, tra_ldr, val_ldr_gd, val_ldr_bd,
+     val_ldr) = create_dataloaders(fpd_gd, fpd_bd, fpd_sn, fold_id,
+                                   NUM_WORKERS, use_gpu, args)
 
     encoder = None
     if approach == 'ae_mlp':
@@ -172,10 +158,12 @@ for fold_id in range(num_folds):
         #                                            scheduler_array,
         #                                            gamma=0.1)
         for e in range(1, n_epochs+1):
-            train_loss = train_epoch(ae, ae_train_loader, loss_fn, optimizer,
+            train_loss = train_epoch(ae, ae_tra_ldr, loss_fn, optimizer,
                                      is_ae=True)
-            val_loss_gd = val_epoch(ae, val_loader_gd, loss_fn, is_ae=True)
-            val_loss_bd = val_epoch(ae, val_loader_bd, loss_fn, is_ae=True)
+            val_loss_gd = val_epoch(ae, val_ldr_gd, loss_fn, is_ae=True)
+            val_loss_bd = val_epoch(ae, val_ldr_bd, loss_fn, is_ae=True)
+            num_val_gd = len(val_ldr_gd.dataset)
+            num_val_bd = len(val_ldr_bd.dataset)
             val_loss = ((num_val_gd * val_loss_gd + num_val_bd * val_loss_bd) /
                         (num_val_gd + num_val_bd))
             # scheduler.step()
@@ -187,8 +175,8 @@ for fold_id in range(num_folds):
 
             metrics.append(train_loss, val_loss, val_loss_gd, val_loss_bd)
         metrics.plot()
-        ae.plot_outputs(val_loader_gd.dataset, 5)
-        ae.plot_outputs(val_loader_bd.dataset, 5)
+        ae.plot_outputs(val_ldr_gd.dataset, 5)
+        ae.plot_outputs(val_ldr_bd.dataset, 5)
         if n_epochs > 0:
             save_model(ae)
             metrics.save()
@@ -206,7 +194,6 @@ for fold_id in range(num_folds):
         model, metrics = init_model('cnn', models_dir, file_id, fold_id,
                                     device, args)
         # loss_fn = torch.nn.CrossEntropyLoss(reduction='sum')
-        # loss_fn = ordinal_loss
         # loss_fn = torch.nn.MSELoss(reduction='sum')
         loss_fn = torch.nn.BCEWithLogitsLoss(reduction='sum')
         optimizer = optim.Adam(model.parameters(), lr=learning_rate)
@@ -226,79 +213,34 @@ for fold_id in range(num_folds):
 
     n_epochs = num_epochs - len(metrics.data['train_loss'])
     for e in range(1, n_epochs+1):
+        print('EPOCH {}/{}'.format(e, n_epochs))
         results = FOEResults()
         results.set_fold(fold_id)
 
-        if e < 0:
-            train_loss = train_epoch(model, train_loader_gd, loss_fn,
-                                     optimizer, encoder=encoder, results=results)
-        elif e < 0:
-            train_loss = train_epoch(model, train_loader_bd, loss_fn,
-                                     optimizer, encoder=encoder, results=results)
-        else:
-            train_loss = train_epoch(model, train_loader, loss_fn,
-                                     optimizer, encoder=encoder, results=results)
-        val_loss_gd = val_epoch(model, val_loader_gd, loss_fn,
-                                encoder=encoder, results=results)
-        val_loss_bd = val_epoch(model, val_loader_bd, loss_fn,
-                                encoder=encoder, results=results)
-        val_loss = ((num_val_gd * val_loss_gd + num_val_bd * val_loss_bd) /
-                    (num_val_gd + num_val_bd))
+        train_loss = train_epoch(model, tra_ldr, loss_fn, optimizer,
+                                 encoder=encoder)
 
-        metrics.append(train_loss, val_loss, val_loss_gd, val_loss_bd)
+        rmse_val = eval_model(model, tra_ldr_gd, tra_ldr_bd, val_ldr_gd,
+                              val_ldr_bd, loss_fn, encoder, estimator,
+                              results, metrics, fold_id)
+
         scheduler.step()
 
-        print('EPOCH {}/{}\tLOSS for train/good val/bad val:\t'
-              '{:.3f} / {:.3f} / {:.3f} / {:.3f}'
-              .format(e, n_epochs, train_loss, val_loss,
-                      val_loss_gd, val_loss_bd))
-
-        if e % 20 == 1 or e == n_epochs:
-            rmse_val = results.compute_classification_rmse(fold_id, estimator)
-            rmse_val = [rmse / np.pi * 180 for rmse in rmse_val]
-            print('RMSE for good train/bad train good val/bad val:\t\t'
-                  '{:3.1f}° / {:3.1f}° / {:3.1f}° / {:3.1f}°'
-                  ''.format(*rmse_val))
-
-            # if num_classes > 1:
-            #     acc_val = results.compute_classification_acc(fold_id)
-            #     acc_val = [acc * 100 for acc in acc_val]
-            #     print('ACC for good train/bad train good val/bad val:\t\t'
-            #           '{:3.1f}% / {:3.1f}% / {:3.1f}% / {:3.1f}%'
-            #           ''.format(*acc_val))
-
     metrics.plot()
+
     if n_epochs > 0:
         save_model(model)
         metrics.save()
+        RMSE_img.extend(results.analyze(fold_id, estimator))
     else:
         results = FOEResults()
         results.set_fold(fold_id)
-        train_loss = val_epoch(model, train_loader, loss_fn,
-                               encoder=encoder, results=results, is_tr=True)
-        val_loss_gd = val_epoch(model, val_loader_gd, loss_fn,
-                                encoder=encoder, results=results)
-        val_loss_bd = val_epoch(model, val_loader_bd, loss_fn,
-                                encoder=encoder, results=results)
-        val_loss = ((num_val_gd * val_loss_gd + num_val_bd * val_loss_bd) /
-                    (num_val_gd + num_val_bd))
+        rmse_val = eval_model(model, tra_ldr_gd, tra_ldr_bd, val_ldr_gd,
+                              val_ldr_bd, loss_fn, encoder, estimator,
+                              results, metrics, fold_id)
 
-        results.analyze(fold_id, estimator)
+        RMSE_img.extend(results.analyze(fold_id, estimator))
 
-        print('Final LOSS for train/good val/bad val:\t'
-              '{:.3f} / {:.3f} / {:.3f} / {:.3f}'
-              .format(train_loss, val_loss, val_loss_gd, val_loss_bd))
-
-        rmse_val = results.compute_classification_rmse(fold_id, estimator)
-        rmse_val = [rmse / np.pi * 180 for rmse in rmse_val]
-        print('RMSE for good train/bad train good val/bad val:\t\t'
-              '{:3.1f}° / {:3.1f}° / {:3.1f}° / {:3.1f}°'.format(*rmse_val))
-
-        if num_classes > 1:
-            acc_val = results.compute_classification_acc(fold_id)
-            acc_val = [acc * 100 for acc in acc_val]
-            print('ACC for good train/bad train good val/bad val:\t\t'
-                  '{:3.1f}% / {:3.1f}% / {:3.1f}% / {:3.1f}%'.format(*acc_val))
     RMSE.append(rmse_val)
 
 RMSE_mean = np.array(RMSE).mean(0)
@@ -311,3 +253,9 @@ print('FINAL RESULTS:\n\t'
       'Val bad rmse: {:.1f}° ± {:.1f}°\n'
       .format(RMSE_mean[0], RMSE_std[0], RMSE_mean[1], RMSE_std[1],
               RMSE_mean[2], RMSE_std[2], RMSE_mean[3], RMSE_std[3]))
+
+RMSE_img_gd = []
+for i in [49, 48, 37, 36, 25, 24, 13, 12, 1, 0]:
+    RMSE_img_gd.append(RMSE_img.pop(i))
+print(RMSE_img, np.mean(RMSE_img), np.std(RMSE_img))
+print(RMSE_img_gd, np.mean(RMSE_img_gd), np.std(RMSE_img_gd))

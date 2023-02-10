@@ -1,7 +1,7 @@
-FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:11.3.1-cudnn8-devel-ubuntu18.04
 
-# CUDA_VERSION: 10.1.243
-# CUDNN_VERSION: 7.6.5.32
+# CUDA_VERSION: 11.3.1
+# CUDNN_VERSION: 8.2.0.53
 
 LABEL maintainer="nesli <neslierdogmus@iyte.edu.tr>"
 
@@ -12,10 +12,10 @@ RUN apt-get update --fix-missing && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-ENV USER_NAME csigb
-ENV UID 1000
-ENV GID 100
-ENV HOME /home/$USER_NAME
+ENV USER_NAME=csigb
+ENV UID=1000
+ENV GID=100
+ENV HOME=/home/$USER_NAME
 
 RUN adduser --disabled-password \
     --gecos "Non-root user" \
@@ -34,8 +34,8 @@ RUN chown $UID:$GID /usr/local/bin/entrypoint.sh && \
 USER $USER_NAME
 
 # install miniconda
-ENV MINICONDA_VERSION py37_4.8.3
-ENV CONDA_DIR $HOME/miniconda3
+ENV MINICONDA_VERSION=py37_4.8.3
+ENV CONDA_DIR=$HOME/miniconda3
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-$MINICONDA_VERSION-Linux-x86_64.sh -O ~/miniconda.sh && \
     chmod +x ~/miniconda.sh && \
     ~/miniconda.sh -b -p $CONDA_DIR && \
@@ -51,15 +51,15 @@ RUN echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.profile
 RUN conda init bash
 
 # create a project directory inside user home
-ENV PROJECT_DIR $HOME/foe
+ENV PROJECT_DIR=$HOME/foe
 RUN mkdir $PROJECT_DIR
 WORKDIR $PROJECT_DIR
 
 # add src folder to PYTHONPATH
-ENV PYTHONPATH "${PYTHONPATH}:$HOME/foe/src"
+ENV PYTHONPATH="${PYTHONPATH}:$HOME/foe/src"
 
 # build the conda environment
-ENV ENV_PREFIX $PROJECT_DIR/env
+ENV ENV_PREFIX=$PROJECT_DIR/env
 RUN conda update --name base --channel defaults conda && \
     conda env create --prefix $ENV_PREFIX --file /tmp/environment.yml --force && \
     conda clean --all --yes
