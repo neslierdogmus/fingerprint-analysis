@@ -1,7 +1,7 @@
-FROM nvidia/cuda:10.1-cudnn7-devel-ubuntu18.04
+FROM nvidia/cuda:11.3.1-cudnn8-devel-ubuntu18.04
 
-# CUDA_VERSION: 10.1.243
-# CUDNN_VERSION: 7.6.5.32
+# CUDA_VERSION: 11.3.1
+# CUDNN_VERSION: 8.2.0.53
 
 LABEL maintainer="nesli <neslierdogmus@iyte.edu.tr>"
 
