@@ -1,14 +1,14 @@
-FROM nvidia/cuda:11.3.1-cudnn8-devel-ubuntu18.04
+FROM nvidia/cuda:11.7.0-cudnn8-devel-ubuntu20.04
 
-# CUDA_VERSION: 11.3.1
-# CUDNN_VERSION: 8.2.0.53
+# CUDA_VERSION: 11.7.0
+# CUDNN_VERSION: 8.5.0.96
 
 LABEL maintainer="nesli <neslierdogmus@iyte.edu.tr>"
 
 SHELL [ "/bin/bash", "--login", "-c" ]
 
 RUN apt-get update --fix-missing && \
-    apt-get install -y ffmpeg libsm6 libxext6 wget bzip2 curl git locate && \
+    apt-get install -y wget && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -34,7 +34,7 @@ RUN chown $UID:$GID /usr/local/bin/entrypoint.sh && \
 USER $USER_NAME
 
 # install miniconda
-ENV MINICONDA_VERSION=py37_4.8.3
+ENV MINICONDA_VERSION=latest
 ENV CONDA_DIR=$HOME/miniconda3
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-$MINICONDA_VERSION-Linux-x86_64.sh -O ~/miniconda.sh && \
     chmod +x ~/miniconda.sh && \
