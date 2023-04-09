@@ -6,10 +6,12 @@ services:
       context: .
     image: foe:latest
     container_name: foe-container
-    runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
     volumes:
       - ../notebooks:/home/csigb/foe/notebooks
       - ../src:/home/csigb/foe/src
