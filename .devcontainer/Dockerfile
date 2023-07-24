@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.7.0-cudnn8-devel-ubuntu20.04
+FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu22.04
 
 # CUDA_VERSION: 11.7.0
 # CUDNN_VERSION: 8.5.0.96

@@ -16,7 +16,7 @@ services:
       - ../notebooks:/home/csigb/foe/notebooks
       - ../src:/home/csigb/foe/src
       - ../results:/home/csigb/foe/results
-      - /media/nesli/storage/Datasets:/home/csigb/foe/datasets
+      - ../datasets:/home/csigb/foe/datasets
     init: true
     stdin_open: true
     tty: true
