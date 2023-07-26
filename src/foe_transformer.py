@@ -1,6 +1,6 @@
 from datasets import load_dataset
 import evaluate
-from transformers import AutoImageProcessor, AutoModelForImageClassification, Trainer, TrainingArguments
+from transformers import AutoFeatureProcessor, AutoModelForImageClassificationWithTeacher, Trainer, TrainingArguments
 from torchvision.transforms import (
     CenterCrop,
     Compose,
@@ -13,11 +13,15 @@ from torchvision.transforms import (
 import numpy as np
 import torch
 
+
 model_cp = "facebook/deit-base-distilled-patch16-224"
 batch_size = 32
 
+
 dataset = load_dataset("keremberke/pokemon-classification", name = "full")
 metric = evaluate.load("accuracy")
+
+print(dataset.keys())
 
 labels = dataset["train"].features["labels"].names
 label2id, id2label = dict(), dict()
@@ -25,7 +29,7 @@ for i, label in enumerate(labels):
     label2id[label] = i
     id2label[i] = label
 
-image_processor = AutoImageProcessor.from_pretrained(model_cp)
+image_processor = AutoFeatureProcessor.from_pretrained(model_cp)
 
 normalize = Normalize(mean=image_processor.image_mean, std=image_processor.image_std)
 
@@ -67,14 +71,14 @@ def preprocess_val(example_batch):
     return example_batch
 
 dataset['train'].set_transform(preprocess_train)
-dataset['val'].set_transform(preprocess_val)
+dataset['validation'].set_transform(preprocess_val)
 
 
-model = AutoModelForImageClassification.from_pretrained(
+model = AutoModelForImageClassificationWithTeacher.from_pretrained(
     model_cp,
     label2id=label2id,
     id2label=id2label,
-    ignore_mismatched_sized = True,
+    ignore_mismatched_sizes = True,
 )
 
 model_name = model_cp.split("/")[-1]
@@ -97,7 +101,6 @@ args = TrainingArguments(
 )
 
 def compute_metrics(eval_pred):
-    """Computes accuracy on a batch of predictions"""
     predictions = np.argmax(eval_pred.predictions, axis=1)
     return metric.compute(predictions=predictions, references=eval_pred.label_ids)
 
@@ -110,11 +113,13 @@ trainer = Trainer(
     model,
     args,
     train_dataset=dataset['train'],
-    eval_dataset=dataset['val'],
+    eval_dataset=dataset['validation'],
     tokenizer=image_processor,
     compute_metrics=compute_metrics,
     data_collator=collate_fn,
 )
 
-res = trainer.train()
 
+results = trainer.train()
+print(results)
+print(trainer.log_metrics('train', results.metrics))
