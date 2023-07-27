@@ -65,8 +65,8 @@ class FOEFingerprintDataset:
             step = int(items[1])
             border = int(items[2])
             fp = FOEFingerprint(self.base_dir, img_filename, self.fp_type)
-            assert(fp.gt.border == border)
-            assert(fp.gt.step == step)
+            assert (fp.gt.border == border)
+            assert (fp.gt.step == step)
             fingerprints.append(fp)
         return fingerprints
 
