@@ -149,7 +149,7 @@ for fold_id in range(num_folds):
     if approach == 'ae_mlp':
         ae, metrics = init_model('ae', models_dir, file_id, fold_id,
                                  device, args)
-        n_epochs = ae_num_epochs - len(metrics.data['train_loss'])
+        n_epochs = ae_num_epochs - len(metrics.data['train_loss']) #??????????????????????????????????????????
         loss_fn = torch.nn.MSELoss(reduction='sum').to(device)
         optimizer = optim.Adam(ae.parameters(), lr=ae_learning_rate)
         # scheduler_array = [int(0.7 * ae_num_epochs),
