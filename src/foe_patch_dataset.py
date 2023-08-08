@@ -3,7 +3,7 @@ import random
 import PIL
 
 import torch
-from torch.utils.data import Dataset
+from datasets import Dataset
 import torchvision.transforms.functional as tf
 
 
@@ -60,7 +60,12 @@ class FOEPatchDataset(Dataset):
             # y = ori.class_id(self.n_classes)
             y = ori.ordinal_code(self.n_classes)
 
-        return x, y, gt_in_radians, index
+        return {
+            "input": x,  # Modify as needed
+            "label": y,  # Modify as needed
+            "gt_in_radians": gt_in_radians,  # Modify as needed
+            "index": index  # Modify as needed
+        }
 
     def __len__(self):
         return len(self.patches)

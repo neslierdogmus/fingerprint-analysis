@@ -125,11 +125,11 @@ def parse_args():
     )
     parser.add_argument("--output_dir", type=str, default=None, help="Where to store the final model.")
     parser.add_argument("--seed", type=int, default=None, help="A seed for reproducible training.")
-    parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.")
-    parser.add_argument(
+    """ parser.add_argument("--push_to_hub", action="store_true", help="Whether or not to push the model to the Hub.") """
+    """ parser.add_argument(
         "--hub_model_id", type=str, help="The name of the repository to keep in sync with the local `output_dir`."
-    )
-    parser.add_argument("--hub_token", type=str, help="The token to use to push to the Model Hub.")
+    ) """
+    """ parser.add_argument("--hub_token", type=str, help="The token to use to push to the Model Hub.") """
     parser.add_argument(
         "--checkpointing_steps",
         type=str,
@@ -218,22 +218,7 @@ def main():
 
     # Handle the repository creation
     if accelerator.is_main_process:
-        if args.push_to_hub:
-            # Retrieve of infer repo_name
-            repo_name = args.hub_model_id
-            if repo_name is None:
-                repo_name = Path(args.output_dir).absolute().name
-            # Create repo and retrieve repo_id
-            repo_id = create_repo(repo_name, exist_ok=True, token=args.hub_token).repo_id
-            # Clone repo locally
-            repo = Repository(args.output_dir, clone_from=repo_id, token=args.hub_token)
-
-            with open(os.path.join(args.output_dir, ".gitignore"), "w+") as gitignore:
-                if "step_*" not in gitignore:
-                    gitignore.write("step_*\n")
-                if "epoch_*" not in gitignore:
-                    gitignore.write("epoch_*\n")
-        elif args.output_dir is not None:
+        if args.output_dir is not None:
             os.makedirs(args.output_dir, exist_ok=True)
     accelerator.wait_for_everyone()
 
