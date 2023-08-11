@@ -35,7 +35,7 @@ def misclassification_cost_loss(ye, y):
 
 # %%
 # parameters
-dataset_dir = '../datasets/Finger/FOESamples'
+dataset_dir = '../datasets'
 output_dir = '../results'
 use_cpu = False
 seed = 0
