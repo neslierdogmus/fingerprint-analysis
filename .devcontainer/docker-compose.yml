@@ -11,6 +11,7 @@ services:
         reservations:
           devices:
             - driver: nvidia
+              count: 1
               capabilities: [gpu]
     volumes:
       - ../notebooks:/home/csigb/foe/notebooks

@@ -4,9 +4,8 @@ import sys
 from argparse import ArgumentParser
 from pathlib import Path
 
-from matplotlib import image
-
 import numpy as np
+from matplotlib import image
 
 from foe_ground_truth import FOEGroundTruth
 from foe_patch import FOEPatch

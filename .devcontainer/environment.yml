@@ -1,26 +1,16 @@
 name: pytorchvision
 
 channels:
-  - conda-forge
-  - defaults
   - pytorch
+  - nvidia
 
 dependencies:
   - ipykernel
   - ipympl
-  - python
   - matplotlib
   - flake8
   - pandas
-  - scikit-image
-  - scikit-learn
-  - tensorboard
-  - pip
-  - pip:
-    - papermill
-    - torch
-    - torchvision
-    - torchnet
-    - torch-tb-profiler
-    - -f https://download.pytorch.org/whl/torch_stable.html
+  - pytorch
+  - torchvision
+  - pytorch-cuda=11.7
     
