@@ -31,13 +31,10 @@ class FOEFingerprint:
                                                                self.fp_type,
                                                                self.fp_id)
 
-    def to_patches(self, radius=32):
-        hi, wi = self.image.shape
-        padded = np.full((hi + 2*radius, wi + 2*radius),
-                         128, dtype=np.uint8)
-        padded[radius:radius+hi,
-               radius:radius+wi] = self.image
-        h, w = self.gt.ori.shape
+    def to_patches(self, patch_size=32):
+        padded = np.pad(self.image, patch_size//2,
+                        mode='constant', constant_values=128)
+        h, w = self.gt.orientations.shape
         patches = []
         for r in range(h):
             y = self.gt.border + r * self.gt.step
@@ -45,22 +42,21 @@ class FOEFingerprint:
                 x = self.gt.border + c * self.gt.step
                 if self.gt.mask[r, c] == 1:
                     patch = FOEPatch(self.fp_id, r, c,
-                                     padded[y:y + 2*radius,
-                                            x:x + 2*radius],
-                                     self.gt.ori[r, c],
+                                     padded[y:y + patch_size,
+                                            x:x + patch_size],
+                                     self.gt.orientations[r, c],
                                      self.fp_type)
                     patches.append(patch)
         return patches
 
-    def get_patch(self, r, c, radius=32):
-        hi, wi = self.image.shape
-        padded = np.full((hi + 2*radius, wi + 2*radius), 128, dtype=np.uint8)
-        padded[radius:radius+hi, radius:radius+wi] = self.image
+    def get_patch(self, r, c, patch_size=32):
+        padded = np.pad(self.image, patch_size//2,
+                        mode='constant', constant_values=128)
         y = self.gt.border + r * self.gt.step
         x = self.gt.border + c * self.gt.step
         patch = FOEPatch(self.filename, r, c,
-                         padded[y:y + 2*radius, x:x + 2*radius],
-                         self.gt.ori[r, c], self.fp_type)
+                         padded[y:y + patch_size, x:x + patch_size],
+                         self.gt.orientations[r, c], self.fp_type)
         return patch
 
 

@@ -4,7 +4,6 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from foe_ae import FOE_AE
-# from foe_multitask import FOE_AUTOENCODER
 from foe_mlp import FOE_MLP
 from foe_cnn import FOE_CNN
 from foe_loss_history import FOELossHistory

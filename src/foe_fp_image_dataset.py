@@ -20,7 +20,7 @@ class FOEFPImageDataset(Dataset):
         self.fp_ids_list = fp_ids_list
         self.n_classes = n_classes
         self._hflip = False
-        self.rotate = False
+        self._rotate = False
         self.fps = []
         for i in range(len(base_path_list)):
             base_path = self.base_path_list[i]
@@ -85,7 +85,7 @@ class FOEFPImageDataset(Dataset):
             orientations = tf.hflip(orientations)
             mask = tf.hflip(mask)
 
-        if self.rotate:
+        if self._rotate:
             angle = random.uniform(-20, 20)
             angle_radian = angle / 180 * np.pi
             for r in range(orientations.shape[1]):
@@ -97,10 +97,8 @@ class FOEFPImageDataset(Dataset):
             x = tf.rotate(x, angle, interpolation=PIL.Image.BILINEAR)
             orientations = tf.rotate(orientations, angle)
             mask = tf.rotate(mask, angle)
-
-        x = tf.normalize(x, [0], [1])
+    
         mask = mask.squeeze()
-
         gt_in_sincos = np.vstack((np.sin(2*orientations),
                                   np.cos(2*orientations)))
 
@@ -125,7 +123,7 @@ class FOEFPImageDataset(Dataset):
         self._hflip = value
 
     def set_rotate(self, rotate=True):
-        self.rotate = rotate
+        self._rotate = rotate
 
 
 if __name__ == '__main__':
