@@ -92,7 +92,7 @@ if __name__ == '__main__':
     from pathlib import Path
 
     sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
-    from foe_fingerprint_dataset import FOEFingerprintDataset
+    from _foe_fingerprint_dataset import FOEFingerprintDataset
 
     parser = ArgumentParser(description='Fingerprint dataset tests')
     parser.add_argument('-b', '--base-path', dest='base_path',

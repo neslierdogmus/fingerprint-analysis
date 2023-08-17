@@ -6,7 +6,7 @@ import random
 import numpy as np
 
 from foe_fingerprint import FOEFingerprint
-from foe_patch_dataset import FOEPatchDataset
+from _foe_patch_dataset import FOEPatchDataset
 
 
 class FOEFingerprintDataset:
