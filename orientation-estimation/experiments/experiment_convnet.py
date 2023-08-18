@@ -9,13 +9,14 @@ import torch
 from foe_fp_image_dataset import FOEFPImageDataset
 from foe_convnet import FOEConvNet
 
-num_folds = 10
+num_folds = 5
 use_cpu = False
 
 n_classes = 1
 num_epochs = 10000
 batch_size = 1
 num_workers = 4
+num_synth = 0
 
 learning_rate = 10**-2
 gamma = 10**-3
@@ -26,9 +27,11 @@ momentum = 0.5
 use_gpu = torch.cuda.is_available() and not use_cpu
 device = 'cuda' if use_gpu else 'cpu'
 
-base_path_bad = './datasets/Finger/FOESamples/Bad'
-base_path_good = './datasets/Finger/FOESamples/Good'
-base_path_synth = './datasets/Finger/FOESamples/Synth'
+print(os.getcwd())
+
+base_path_bad = './foe/dataset/Bad'
+base_path_good = './foe/dataset/Good'
+base_path_synth = './foe/dataset/Synth'
 
 
 def split_database(base_path, num_folds):
@@ -91,6 +94,7 @@ def calc_rmse(output_exp, output_pre, mask):
 
 parts_bad = split_database(base_path_bad, num_folds)
 parts_good = split_database(base_path_good, num_folds)
+parts_synth = split_database(base_path_synth, 1)
 
 print(device)
 
@@ -110,11 +114,14 @@ for fold in range(num_folds):
     fp_ids_bad_tra = np.append(parts_bad[:fold], parts_bad[fold+1:])
     fp_ids_good_val = parts_good[fold]
     fp_ids_good_tra = np.append(parts_good[:fold], parts_good[fold+1:])
+    fp_ids_synth_tra = parts_synth[0][0:num_synth]
     foe_img_ds_val = FOEFPImageDataset([base_path_bad, base_path_good],
                                        [fp_ids_bad_val, fp_ids_good_val],
                                        n_classes)
-    foe_img_ds_tra = FOEFPImageDataset([base_path_bad, base_path_good],
-                                       [fp_ids_bad_tra, fp_ids_good_tra],
+    foe_img_ds_tra = FOEFPImageDataset([base_path_bad, base_path_good,
+                                        base_path_synth],
+                                       [fp_ids_bad_tra, fp_ids_good_tra,
+                                        fp_ids_synth_tra],
                                        n_classes)
     foe_img_ds_val.set_hflip()
     foe_img_ds_tra.set_hflip()
@@ -152,7 +159,7 @@ for fold in range(num_folds):
 
         if e % 20 == 0:
             if e % 100 == 0:
-                path = './results/model_'+str(e).zfill(3)+'.pt'
+                path = './foe/results/model_'+str(e).zfill(3)+'.pt'
                 torch.save({'mstate': model.state_dict()}, path)
                 print('Saved model to {}'.format(path))
             with torch.no_grad():

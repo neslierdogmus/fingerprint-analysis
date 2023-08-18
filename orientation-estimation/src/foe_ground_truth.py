@@ -22,12 +22,8 @@ class FOEGroundTruth:
         gt_path = Path(base_path).joinpath(fp_id + '.gt')
         mask_path = Path(base_path).joinpath(fp_id + '.fg')
 
-        try:
-            mask = np.loadtxt(mask_path)
-        except ValueError:
-            mask = np.loadtxt(mask_path, skiprows=1)
-
         if not base_path.endswith('Synth'):
+            mask = np.loadtxt(mask_path, skiprows=1)
             with open(gt_path, 'rb') as fin:
                 fin.read(8)
                 border = _read_int_bytes(fin, 4)
@@ -46,7 +42,8 @@ class FOEGroundTruth:
                         orientations[r, c] = orientations[r, c] / 256 * np.pi
                         weights[r, c] = _read_int_bytes(fin, 1)
         else:
-            orientations = np.loadtxt(gt_path)
+            mask = np.loadtxt(mask_path)
+            orientations = np.loadtxt(gt_path) / 180 * np.pi
             border = 14
             step = 8
             weights = np.zeros_like(orientations)

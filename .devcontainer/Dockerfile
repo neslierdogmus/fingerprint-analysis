@@ -48,12 +48,15 @@ RUN echo ". $CONDA_DIR/etc/profile.d/conda.sh" >> ~/.profile
 RUN conda init bash
 
 # create a project directory inside user home
-ENV PROJECT_DIR=$HOME/foe
+ENV PROJECT_DIR=$HOME/finperprint-analysis
 RUN mkdir $PROJECT_DIR
+RUN mkdir $PROJECT_DIR/foe
+RUN mkdir $PROJECT_DIR/fc
+RUN mkdir $PROJECT_DIR/fmd
 WORKDIR $PROJECT_DIR
 
 # add src folder to PYTHONPATH
-ENV PYTHONPATH="${PYTHONPATH}:$HOME/foe/src"
+ENV PYTHONPATH="${PYTHONPATH}:$PROJECT_DIR/foe/src:$PROJECT_DIR/fc/src:$PROJECT_DIR/fmd/src"
 
 # build the conda environment
 ENV ENV_PREFIX=$PROJECT_DIR/env

@@ -1,11 +1,11 @@
 version: '3'
 
 services:
-  fingerprint-orientation-estimation:
+  fingerprint-analysis:
     build:
       context: .
-    image: foe:latest
-    container_name: foe-container
+    image: fpa:latest
+    container_name: fpa
     deploy:
       resources:
         reservations:
@@ -14,10 +14,18 @@ services:
               count: 1
               capabilities: [gpu]
     volumes:
-      - ../notebooks:/home/csigb/foe/notebooks
-      - ../src:/home/csigb/foe/src
-      - ../results:/home/csigb/foe/results
-      - /media/nesli/storage/Datasets:/home/csigb/foe/datasets
+      - /media/nesli/storage/Datasets/Finger/FOESamples:/home/csigb/finperprint-analysis/foe/dataset
+      - ../orientation-estimation/src:/home/csigb/finperprint-analysis/foe/src
+      - ../orientation-estimation/experiments:/home/csigb/finperprint-analysis/foe/experiments
+      - ../orientation-estimation/results:/home/csigb/finperprint-analysis/foe/results
+      - /media/nesli/storage/Datasets/Finger/NIST_SD4:/home/csigb/finperprint-analysis/fc/dataset
+      - ../classification/src:/home/csigb/finperprint-analysis/fc/src
+      - ../classification/experiments:/home/csigb/finperprint-analysis/fc/experiments
+      - ../classification/results:/home/csigb/finperprint-analysis/fc/results
+      - /media/nesli/storage/Datasets/Finger/FVC_BERKAY_TOPCU:/home/csigb/finperprint-analysis/fmd/dataset
+      - ../minutiae-detection/src:/home/csigb/finperprint-analysis/fmd/src
+      - ../minutiae-detection/experiments:/home/csigb/finperprint-analysis/fmd/experiments
+      - ../minutiae-detection/results:/home/csigb/finperprint-analysis/fmd/results
     init: true
     stdin_open: true
     tty: true

@@ -16,8 +16,12 @@ class FOEFingerprint:
         self.base_path = base_path
         self.fp_id = fp_id
 
-        img_path = Path(base_path).joinpath(fp_id + '.bmp')
-        self.image = image.imread(img_path)
+        try:
+            img_path = Path(base_path).joinpath(fp_id + '.bmp')
+            self.image = image.imread(img_path)
+        except FileNotFoundError:
+            img_path = Path(base_path).joinpath(fp_id + '.png')
+            self.image = image.imread(img_path)
 
         self.gt = FOEGroundTruth.from_file(base_path, fp_id)
         self.fp_type = Path(base_path).parts[-1]

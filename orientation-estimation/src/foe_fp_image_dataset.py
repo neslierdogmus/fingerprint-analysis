@@ -97,7 +97,7 @@ class FOEFPImageDataset(Dataset):
             x = tf.rotate(x, angle, interpolation=PIL.Image.BILINEAR)
             orientations = tf.rotate(orientations, angle)
             mask = tf.rotate(mask, angle)
-    
+
         mask = mask.squeeze()
         gt_in_sincos = np.vstack((np.sin(2*orientations),
                                   np.cos(2*orientations)))
