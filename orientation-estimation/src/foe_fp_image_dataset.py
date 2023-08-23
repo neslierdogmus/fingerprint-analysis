@@ -135,7 +135,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser(description='FOE fingerprint image dataset tests')
     parser.add_argument('-b', '--base-path', dest='base_path',
-                        default='./datasets/Finger/FOESamples/Bad',
+                        default='./datasets/foe/Bad',
                         metavar='BASEPATH',
                         help='root directory for dataset files')
     parser.add_argument('-nc', '--n-classes', dest='n_classes',

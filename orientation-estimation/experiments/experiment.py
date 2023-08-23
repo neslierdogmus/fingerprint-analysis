@@ -8,7 +8,7 @@ import torch
 import torch.optim as optim
 
 from _foe_fingerprint_dataset import FOEFingerprintDataset
-from foe_orientation import FOEOrientation
+from _foe_orientation import FOEOrientation
 from foe_results import FOEResults
 from functions import (create_dataloaders, init_model, train_epoch, val_epoch,
                        save_model, eval_model)

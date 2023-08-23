@@ -7,7 +7,7 @@ import numpy as np
 from scipy import ndimage
 from matplotlib import pyplot as plt
 
-from foe_orientation import FOEOrientation
+from _foe_orientation import FOEOrientation
 from foe_fingerprint import FOEFingerprint
 
 

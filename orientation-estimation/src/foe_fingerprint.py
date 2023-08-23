@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-import sys
 
-from argparse import ArgumentParser
 from pathlib import Path
 
 import numpy as np
 from matplotlib import image
 
-from foe_ground_truth import FOEGroundTruth
+from foe_fp_ground_truth import FOEGroundTruth
 from foe_patch import FOEPatch
 
 
@@ -24,6 +22,7 @@ class FOEFingerprint:
             self.image = image.imread(img_path)
 
         self.gt = FOEGroundTruth.from_file(base_path, fp_id)
+        # TODO: To be updated
         self.fp_type = Path(base_path).parts[-1]
 
     def __repr__(self):
@@ -65,6 +64,9 @@ class FOEFingerprint:
 
 
 if __name__ == '__main__':
+    import sys
+    from argparse import ArgumentParser
+
     parser = ArgumentParser(description='Fingerprint loading tests')
     parser.add_argument('-b', '--base-path', dest='base_path',
                         default='datasets/Finger/FOESamples/Bad',

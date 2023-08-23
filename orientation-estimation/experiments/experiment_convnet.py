@@ -7,7 +7,7 @@ import torch
 
 
 from foe_fp_image_dataset import FOEFPImageDataset
-from foe_convnet import FOEConvNet
+from foe_model_convnet import FOEConvNet
 
 num_folds = 5
 use_cpu = False
@@ -29,9 +29,9 @@ device = 'cuda' if use_gpu else 'cpu'
 
 print(os.getcwd())
 
-base_path_bad = './foe/dataset/Bad'
-base_path_good = './foe/dataset/Good'
-base_path_synth = './foe/dataset/Synth'
+base_path_bad = 'datasets/foe/Bad'
+base_path_good = 'datasets/foe/Good'
+base_path_synth = 'datasets/foe/Synth'
 
 
 def split_database(base_path, num_folds):

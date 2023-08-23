@@ -3,9 +3,9 @@ from torch.utils.data import DataLoader
 
 import numpy as np
 
-from foe_ae import FOE_AE
-from foe_mlp import FOE_MLP
-from foe_cnn import FOE_CNN
+from foe_model_ae import FOE_AE
+from foe_model_mlp import FOE_MLP
+from foe_model_cnn import FOE_CNN
 from foe_loss_history import FOELossHistory
 
 from time import time
