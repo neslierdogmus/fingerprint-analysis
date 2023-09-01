@@ -27,8 +27,6 @@ momentum = 0.5
 use_gpu = torch.cuda.is_available() and not use_cpu
 device = 'cuda' if use_gpu else 'cpu'
 
-print(os.getcwd())
-
 base_path_bad = 'datasets/foe/Bad'
 base_path_good = 'datasets/foe/Good'
 base_path_synth = 'datasets/foe/Synth'
@@ -41,21 +39,6 @@ def split_database(base_path, num_folds):
     random.shuffle(fp_ids)
     parts = np.array_split(fp_ids, num_folds)
     return parts
-
-
-class CustomLoss(torch.nn.Module):
-    def __init__(self):
-        super(CustomLoss, self).__init__()
-
-    def forward(self, output_exp, output_pre):
-        # Compute the squared norm of the difference vector
-        diff = output_pre - output_exp
-        squared_norm = torch.sum(diff ** 2, dim=0)
-
-        # Average the squared norms over the MxN dimensions
-        loss = torch.mean(squared_norm)
-
-        return loss
 
 
 def construct_lr_lambda(gamma, power):
@@ -154,8 +137,7 @@ for fold in range(num_folds):
             optimizer.step()
             total_loss += loss.item()
             scheduler.step()
-        print(e, total_loss / len(foe_img_dl_tra.dataset) * batch_size,
-              scheduler.get_last_lr())
+        print(e, total_loss / len(foe_img_dl_tra), scheduler.get_last_lr())
 
         if e % 20 == 0:
             if e % 100 == 0:
@@ -179,6 +161,7 @@ for fold in range(num_folds):
                             rmse_good_tra.append(calc_rmse(y, y_out, mask))
                 print(np.mean(rmse_bad_tra), np.mean(rmse_good_tra))
 
+                total_loss = 0.0
                 rmse_bad_val = []
                 rmse_good_val = []
                 for (xi, yi, mask, orientations, fp_type,

@@ -25,7 +25,7 @@ class FCFingerprint:
 
     def __str__(self):
         h, w = self.image.shape
-        return '{:3d}x{:3d} {} {} FCFingerprint id:{}'.format(w, h,
+        return '{}x{} {} {} FCFingerprint filename {}'.format(w, h,
                                                               self.fp_type,
                                                               self.gt.fp_class,
                                                               self.fp_fname)
@@ -37,19 +37,20 @@ if __name__ == '__main__':
 
     parser = ArgumentParser(description='Fingerprint loading tests')
     parser.add_argument('-p', '--fp-path', dest='fp_path',
-                        default='fc/dataset/png_txt/figs_0',
+                        default='datasets/fc/png_txt/figs_0',
                         metavar='BASEPATH',
                         help='directory for fingerprint files')
-    parser.add_argument('-fid', '--fp-id', dest='fp_id',
-                        default='f0001_01', metavar='FINGERPRINTID',
-                        help='id of the fingerprint')
+    parser.add_argument('-fn', '--fp-fname', dest='fp_fname',
+                        default='f0001_01', metavar='FINGERPRINT FILE NAME',
+                        help='name of the fingerprint file')
 
     args = parser.parse_args(sys.argv[1:])
 
     fp_path = args.fp_path
-    fp_id = args.fp_id
+    fp_fname = args.fp_fname
 
-    fp = FCFingerprint(fp_path, fp_id)
+    fp = FCFingerprint(fp_path, fp_fname)
 
-    print('Created a {} fingerprint with id {}'.format(fp.fp_type, fp.fp_id))
+    print('Created a {} fingerprint with id {}'.format(fp.fp_type,
+                                                       fp.fp_fname))
     print(fp)

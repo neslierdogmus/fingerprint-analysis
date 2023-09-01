@@ -8,12 +8,12 @@ import torch
 from torch.utils.data import Dataset
 import torchvision.transforms as T
 
-from fc_fingerprint import FCFingerprint
+from fmd_fingerprint import FMDFingerprint
 
 
-class FCFPDataset(Dataset):
-    def __init__(self, base_path, fp_ids, n_classes=5):
-        super(FCFPDataset).__init__()
+class FMDFPImageDataset(Dataset):
+    def __init__(self, base_path, fp_ids, n_classes=1):
+        super(FMDFPImageDataset).__init__()
 
         self.base_path = base_path
         self.fp_ids = fp_ids
@@ -23,40 +23,48 @@ class FCFPDataset(Dataset):
         self._resize = False
         self.fps = []
 
+        folders = ['FM3_FVC2002DB1A_np', 'FM3_FVC2002DB3A_np',
+                   'FM3_FVC2004DB1A_np', 'FM3_FVC2004DB3A_np']
         for fp_id in fp_ids:
-            fp_folder = 'figs_'+str(fp_id // 250)
-            fp_path = Path(base_path).joinpath('png_txt', fp_folder)
-            fp_fid = str(fp_id + 1).zfill(4)
-            for fp_img_path in fp_path.glob('*'+fp_fid+'*.png'):
+            fp_folder = folders[fp_id // 100]
+            fp_path = Path(base_path).joinpath(fp_folder)
+            fp_fid = str(fp_id % 100 + 1) + '_'
+            for fp_img_path in fp_path.glob(fp_fid+'*.tif'):
                 fp_fname = fp_img_path.parts[-1].split('.')[0]
-                fp = FCFingerprint(fp_path, fp_fname)
-                self.fps.append(fp)
+                fp = FMDFingerprint(fp_path, fp_fname)
+                if (not isinstance(fp.image, type(None))
+                        and len(fp.gt.lst_min_type) > 0):
+                    self.fps.append(fp)
 
     def __getitem__(self, index):
-        fc_fingerprint = self.fps[index]
-        x = fc_fingerprint.image
-        gender = fc_fingerprint.gt.gender
-        fp_class = fc_fingerprint.gt.fp_class
-        fp_class_2 = fc_fingerprint.gt.fp_class_2
+        fmd_fingerprint = self.fps[index]
+        x = fmd_fingerprint.image
+        y = fmd_fingerprint.get_minutiae_map()
+        quality = fmd_fingerprint.gt.quality
 
         x = torch.from_numpy(x.astype(np.single))
+        y = torch.from_numpy(y.astype(np.single))
         x = torch.unsqueeze(x, 0)
+        y = torch.unsqueeze(y, 0)
 
         if self._resize:
             x = T.functional.resize(x, [224, 224], antialias=True)
-
-        y = np.array(['T', 'A', 'L', 'R', 'W']) == fp_class
-        y = torch.from_numpy(y.astype(float))
+            y = T.functional.resize(y, [224, 224], antialias=True)
 
         if self._hflip and random.random() >= 0.5:
             x = T.functional.hflip(x)
+            y = T.functional.hflip(y)
 
         if self._rotate:
             angle = random.uniform(-20, 20)
             x = T.functional.rotate(x, angle,
                                     interpolation=T.InterpolationMode.BILINEAR)
+            y = T.functional.rotate(y, angle,
+                                    interpolation=T.InterpolationMode.BILINEAR)
 
-        return x, y, fp_class_2, gender, index
+        x = T.functional.normalize(x, torch.mean(x), torch.std(x))
+
+        return x, y, quality, index
 
     def __len__(self):
         return len(self.fps)
@@ -78,9 +86,9 @@ if __name__ == '__main__':
 
     sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 
-    parser = ArgumentParser(description='FC fingerprint image dataset tests')
+    parser = ArgumentParser(description='FMD fingerprint image dataset tests')
     parser.add_argument('-b', '--base-path', dest='base_path',
-                        default='datasets/fc',
+                        default='datasets/fmd',
                         metavar='BASEPATH',
                         help='root directory for dataset files')
     parser.add_argument('-nf', '--num-folds', dest='num_folds',
@@ -91,7 +99,7 @@ if __name__ == '__main__':
     base_path = args.base_path
     num_folds = args.num_folds
 
-    fp_ids = list(range(500))
+    fp_ids = list(range(400))
     random.shuffle(fp_ids)
     splits = np.array(np.array_split(fp_ids, num_folds))
 
@@ -99,8 +107,8 @@ if __name__ == '__main__':
         fp_ids_val = splits[fold]
         fp_ids_tra = np.append(splits[:fold], splits[fold+1:])
 
-        fc_fp_ds_val = FCFPDataset(base_path, fp_ids_val)
-        fc_fp_ds_tra = FCFPDataset(base_path, fp_ids_tra)
+        fc_fp_ds_val = FMDFPImageDataset(base_path, fp_ids_val)
+        fc_fp_ds_tra = FMDFPImageDataset(base_path, fp_ids_tra)
 
         print('Created FC dataset for validation with {} fingerprints'
               .format(len(fc_fp_ds_val)))

@@ -11,7 +11,7 @@ num_folds = 5
 use_cpu = False
 
 num_epochs = 10000
-batch_size = 1
+batch_size = 8
 num_workers = 4
 num_synth = 0
 
@@ -22,7 +22,7 @@ base_path = 'datasets/fc'
 
 criterion = nn.CrossEntropyLoss()
 
-fp_ids = list(range(1, 501))
+fp_ids = list(range(500))
 random.shuffle(fp_ids)
 splits = np.array(np.array_split(fp_ids, num_folds))
 
@@ -53,9 +53,7 @@ for fold in range(num_folds):
 
     fp_ids_val = splits[fold]
     fc_fp_ds_val = FCFPDataset(base_path, fp_ids_val)
-    fc_fp_ds_val.set_hflip()
-    fc_fp_ds_val.set_rotate()
-    fc_fp_ds_val.set_resize()
+    # fc_fp_ds_val.set_resize()
     fc_fp_dl_val = torch.utils.data.DataLoader(fc_fp_ds_val,
                                                batch_size=batch_size,
                                                num_workers=num_workers,
@@ -66,7 +64,7 @@ for fold in range(num_folds):
     fc_fp_ds_tra = FCFPDataset(base_path, fp_ids_tra)
     fc_fp_ds_tra.set_hflip()
     fc_fp_ds_tra.set_rotate()
-    fc_fp_ds_val.set_resize()
+    # fc_fp_ds_tra.set_resize()
     fc_fp_dl_tra = torch.utils.data.DataLoader(fc_fp_ds_tra,
                                                batch_size=batch_size,
                                                num_workers=num_workers,

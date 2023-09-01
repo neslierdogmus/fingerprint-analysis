@@ -14,15 +14,15 @@ services:
               count: 1
               capabilities: [gpu]
     volumes:
-      - /media/nesli/storage/Datasets/Finger/FOESamples:/home/csigb/finperprint-analysis/datasets/foe
+      - /media/nesli/storage2/Datasets/Finger/FOESamples:/home/csigb/finperprint-analysis/datasets/foe
       - ../orientation-estimation/src:/home/csigb/finperprint-analysis/foe/src
       - ../orientation-estimation/experiments:/home/csigb/finperprint-analysis/foe/experiments
       - ../orientation-estimation/results:/home/csigb/finperprint-analysis/foe/results
-      - /media/nesli/storage/Datasets/Finger/NIST_SD4:/home/csigb/finperprint-analysis/datasets/fc
+      - /media/nesli/storage2/Datasets/Finger/NIST_SD4:/home/csigb/finperprint-analysis/datasets/fc
       - ../classification/src:/home/csigb/finperprint-analysis/fc/src
       - ../classification/experiments:/home/csigb/finperprint-analysis/fc/experiments
       - ../classification/results:/home/csigb/finperprint-analysis/fc/results
-      - /media/nesli/storage/Datasets/Finger/FVC_BERKAY_TOPCU:/home/csigb/finperprint-analysis/datasets/fmd
+      - /media/nesli/storage2/Datasets/Finger/FVC_BERKAY_TOPCU:/home/csigb/finperprint-analysis/datasets/fmd
       - ../minutiae-detection/src:/home/csigb/finperprint-analysis/fmd/src
       - ../minutiae-detection/experiments:/home/csigb/finperprint-analysis/fmd/experiments
       - ../minutiae-detection/results:/home/csigb/finperprint-analysis/fmd/results

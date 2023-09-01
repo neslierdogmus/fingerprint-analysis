@@ -2,8 +2,8 @@
 
 from pathlib import Path
 
-import numpy as np
 from matplotlib import image
+import numpy as np
 
 from foe_fp_ground_truth import FOEGroundTruth
 from foe_patch import FOEPatch
