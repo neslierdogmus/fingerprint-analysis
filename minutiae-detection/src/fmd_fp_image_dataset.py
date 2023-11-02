@@ -41,15 +41,29 @@ class FMDFPImageDataset(Dataset):
         x = fmd_fingerprint.image
         y = fmd_fingerprint.get_minutiae_map()
         quality = fmd_fingerprint.gt.quality
+        min_x = fmd_fingerprint.gt.lst_min_posX
+        min_y = fmd_fingerprint.gt.lst_min_posY
+        min_x = np.pad(min_x, (0, 100-len(min_x)), constant_values=(-1))
+        min_y = np.pad(min_y, (0, 100-len(min_y)), constant_values=(-1))
 
         x = torch.from_numpy(x.astype(np.single))
         y = torch.from_numpy(y.astype(np.single))
         x = torch.unsqueeze(x, 0)
         y = torch.unsqueeze(y, 0)
 
+        if list(x.shape) == [1, 374, 388]:
+            x = T.functional.pad(x, (126, 53))
+            y = T.functional.pad(y, (126, 53))
+        elif list(x.shape) == [1, 300, 300]:
+            x = T.functional.pad(x, (170, 90))
+            y = T.functional.pad(y, (170, 90))
+        elif list(x.shape) == [1, 480, 300]:
+            x = T.functional.pad(x, (170, 0))
+            y = T.functional.pad(y, (170, 0))
+
         if self._resize:
-            x = T.functional.resize(x, [224, 224], antialias=True)
-            y = T.functional.resize(y, [224, 224], antialias=True)
+            x = T.functional.resize(x, [360, 360], antialias=True)
+            y = T.functional.resize(y, [360, 360], antialias=True)
 
         if self._hflip and random.random() >= 0.5:
             x = T.functional.hflip(x)
@@ -64,7 +78,7 @@ class FMDFPImageDataset(Dataset):
 
         x = T.functional.normalize(x, torch.mean(x), torch.std(x))
 
-        return x, y, quality, index
+        return x, y, (min_y, min_x), quality, index
 
     def __len__(self):
         return len(self.fps)

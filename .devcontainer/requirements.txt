@@ -1,0 +1,9 @@
+torch
+torchvision
+scipy
+scikit-image
+flake8
+matplotlib
+ipympl
+ipykernel
+pandas

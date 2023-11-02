@@ -65,7 +65,7 @@ class FMDConvNet(nn.Module):
 
         self.up1 = nn.Sequential(
             # Defining a 2D convolution layer
-            nn.Conv2d(512, 256, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(768, 256, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(256),
             # Defining a 2D convolution layer
@@ -79,7 +79,7 @@ class FMDConvNet(nn.Module):
 
         self.up2 = nn.Sequential(
             # Defining a 2D convolution layer
-            nn.Conv2d(256, 128, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(384, 128, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(128),
             # Defining a 2D convolution layer
@@ -92,7 +92,7 @@ class FMDConvNet(nn.Module):
 
         self.outc = nn.Sequential(
             # Defining a 2D convolution layer
-            nn.Conv2d(128, 64, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(192, 64, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(64),
             # Defining a 2D convolution layer
@@ -100,8 +100,7 @@ class FMDConvNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(64),
             # Defining a 2D convolution layer
-            nn.Conv2d(64, 1, kernel_size=1, stride=1, padding='same'),
-            nn.Sigmoid()
+            nn.Conv2d(64, 1, kernel_size=1, stride=1, padding='same')
         )
 
         self.apply(self.init_weights)
