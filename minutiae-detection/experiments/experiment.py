@@ -13,7 +13,7 @@ num_folds = 5
 use_cpu = False
 
 n_classes = 1
-num_epochs = 51
+num_epochs = 101
 batch_size = 4
 num_workers = 2
 num_synth = 0
@@ -62,14 +62,16 @@ def calc_accuracy(y_out, gt_min_yx, Td):
     for i in range(y_out.shape[0]):
         yi_out = y_out[i, 0, :, :]
         output = yi_out.cpu().detach().numpy()
+        output[output<0] = 0
         est_yx = peak_local_max(output, min_distance=3)
-        gt_yx = np.array(gt_min_yx)[:, i, :].transpose()
+        gt_m_yx = np.array(gt_min_yx)[:, i, :].transpose()
+        gt_m_yx = gt_m_yx[gt_m_yx[:,0]>0,:]
         M = len(est_yx)
-        N = len(gt_yx)
+        N = len(gt_m_yx)
         dist = np.zeros((M, N))
         for m in range(M):
             for n in range(N):
-                dist[m, n] = np.linalg.norm(est_yx[m] - gt_yx[n])
+                dist[m, n] = np.linalg.norm(est_yx[m] - gt_m_yx[n])
         dist_tmp = np.array(dist)
         match = np.zeros_like(dist_tmp)
         while np.sum(match) < M and np.sum(match) < N:
@@ -83,7 +85,7 @@ def calc_accuracy(y_out, gt_min_yx, Td):
         TP = np.sum(match)
         Recall.append(TP / N)
         Precision.append(TP / M)
-        F1.append(TP / (M + N))
+        F1.append(2 * TP / (M + N))
     return Recall, Precision, F1
 
 
@@ -91,7 +93,10 @@ print(device)
 
 # %%
 for fold in range(1):
-    model = FMDConvNet()
+    model = FMDConvNet(8)
+    # chk_dict = torch.load('../results/model_060.pt')
+    # mstate = chk_dict['mstate']
+    # model.load_state_dict(mstate)
     model = model.to(device)
     print(sum(p.numel() for p in model.parameters()))
 
@@ -111,8 +116,8 @@ for fold in range(1):
 
     # fmd_img_ds_val.set_resize()
     fmd_img_ds_tra.set_hflip()
-    # fmd_img_ds_tra.set_rotate()
-    # fmd_img_ds_tra.set_resize()
+    fmd_img_ds_tra.set_rotate()
+    fmd_img_ds_tra.set_resize()
 
     fmd_img_dl_val = torch.utils.data.DataLoader(fmd_img_ds_val,
                                                  batch_size=batch_size,
@@ -129,7 +134,7 @@ for fold in range(1):
         model.train()
         total_loss = 0.0
         for xi, yi, gt_yx, quality, index in fmd_img_dl_tra:
-            mask = torch.logical_or((yi > 0), (torch.rand(yi.shape) > 0.1))
+            mask = torch.logical_or((yi > 0), (torch.rand(yi.shape) > 0.2))
             mask = mask.float().to(device)
             xi = xi.to(device)
             yi = yi.to(device)
@@ -145,15 +150,15 @@ for fold in range(1):
         # print(e, total_loss / len(fmd_img_dl_tra), scheduler.get_last_lr())
         print(e, total_loss / len(fmd_img_dl_tra))
 
-        save_image(xi[0], 'xi{}.png'.format(str(e).zfill(2)))
-        save_image(yi[0], 'yi{}.png'.format(str(e).zfill(2)))
-        save_image(y_out[0], 'yo{}.png'.format(str(e).zfill(2)))
+        save_image(xi[0], '{}_xi.png'.format(str(e).zfill(2)))
+        save_image(yi[0], '{}_yi.png'.format(str(e).zfill(2)))
+        save_image(y_out[0], '{}_yo.png'.format(str(e).zfill(2)))
 
         if e % 10 == 0:
             path = '../../fmd/results/model_'+str(e).zfill(3)+'.pt'
             torch.save({'mstate': model.state_dict()}, path)
             print('Saved model to {}'.format(path))
-            if e % 100 == 0 and e > 0:
+            if e > 0:
                 with torch.no_grad():
                     model.eval()
                     total_loss = 0.0
@@ -161,14 +166,15 @@ for fold in range(1):
                     Precision_tra = []
                     F1_tra = []
                     Quality_tra = []
-                    for xi, yi, gt_yx, quality, index in fmd_img_dl_tra:
+                    for xi, yi, gt_yx, quality, index in fmd_img_dl_val:
                         xi = xi.to(device)
                         y_out = model(xi)
                         Recall, Precision, F1 = calc_accuracy(y_out, gt_yx, 15)
                         Recall_tra.extend(Recall)
                         Precision_tra.extend(Precision)
                         F1_tra.extend(F1)
-                        Quality_tra.extend(quality)
+                        quality_np = quality.cpu().detach().numpy()
+                        Quality_tra.extend(list(quality_np))
                     print(np.mean(Recall_tra), np.mean(Precision_tra),
                           np.mean(F1_tra))
 

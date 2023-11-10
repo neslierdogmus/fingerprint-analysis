@@ -5,31 +5,31 @@ import torch.nn as nn
 
 
 class FMDConvNet(nn.Module):
-    def __init__(self):
+    def __init__(self, size=32):
         super(FMDConvNet, self).__init__()
 
         self.inc = nn.Sequential(
             # Defining a 2D convolution layer
-            nn.Conv2d(1, 64, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(1, size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64),
+            nn.BatchNorm2d(size),
             # Defining a 2D convolution layer
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(size, size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64)
+            nn.BatchNorm2d(size)
             )
 
         self.down1 = nn.Sequential(
             # 1st MaxPool -> 1/2
             nn.MaxPool2d(kernel_size=2, stride=2),
             # Defining a 2D convolution layer
-            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(size, 2*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(128),
+            nn.BatchNorm2d(2*size),
             # Defining a 2D convolution layer
-            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(2*size, 2*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(128)
+            nn.BatchNorm2d(2*size)
             )
 
         self.down2 = nn.Sequential(
@@ -37,13 +37,13 @@ class FMDConvNet(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Dropout2d(0.5),
             # Defining a 2D convolution layer
-            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(2*size, 4*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(256),
+            nn.BatchNorm2d(4*size),
             # Defining a 2D convolution layer
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(4*size, 4*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(256)
+            nn.BatchNorm2d(4*size)
         )
 
         self.uturn = nn.Sequential(
@@ -51,56 +51,56 @@ class FMDConvNet(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.Dropout2d(0.5),
             # Defining a 2D convolution layer
-            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(4*size, 8*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(512),
+            nn.BatchNorm2d(8*size),
             # Defining a 2D convolution layer
-            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(8*size, 8*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(512),
+            nn.BatchNorm2d(8*size),
             # Up-sampling -> 1/4
             nn.Dropout2d(0.5),
-            nn.ConvTranspose2d(512, 512, kernel_size=2, stride=2)
+            nn.ConvTranspose2d(8*size, 8*size, kernel_size=2, stride=2)
         )
 
         self.up1 = nn.Sequential(
-            # Defining a 2D convolution layer
-            nn.Conv2d(768, 256, kernel_size=3, stride=1, padding='same'),
+            # Defining a 2D convolution layer 
+            nn.Conv2d((8+4)*size, 4*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(256),
+            nn.BatchNorm2d(4*size),
             # Defining a 2D convolution layer
-            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(4*size, 4*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(256),
+            nn.BatchNorm2d(4*size),
             # Up-sampling -> 1/2
             nn.Dropout2d(0.5),
-            nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2)
+            nn.ConvTranspose2d(4*size, 4*size, kernel_size=2, stride=2)
         )
 
         self.up2 = nn.Sequential(
             # Defining a 2D convolution layer
-            nn.Conv2d(384, 128, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d((4+2)*size, 2*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(128),
+            nn.BatchNorm2d(2*size),
             # Defining a 2D convolution layer
-            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(2*size, 2*size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(128),
+            nn.BatchNorm2d(2*size),
             # Up-sampling -> 1/1
-            nn.ConvTranspose2d(128, 128, kernel_size=2, stride=2)
+            nn.ConvTranspose2d(2*size, 2*size, kernel_size=2, stride=2)
         )
 
         self.outc = nn.Sequential(
             # Defining a 2D convolution layer
-            nn.Conv2d(192, 64, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d((2+1)*size, size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64),
+            nn.BatchNorm2d(size),
             # Defining a 2D convolution layer
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding='same'),
+            nn.Conv2d(size, size, kernel_size=3, stride=1, padding='same'),
             nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64),
+            nn.BatchNorm2d(size),
             # Defining a 2D convolution layer
-            nn.Conv2d(64, 1, kernel_size=1, stride=1, padding='same')
+            nn.Conv2d(size, 1, kernel_size=1, stride=1, padding='same')
         )
 
         self.apply(self.init_weights)

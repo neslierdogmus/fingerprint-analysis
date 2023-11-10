@@ -40,41 +40,80 @@ class FMDFPImageDataset(Dataset):
         fmd_fingerprint = self.fps[index]
         x = fmd_fingerprint.image
         y = fmd_fingerprint.get_minutiae_map()
+        # y_b = fmd_fingerprint.get_minutiae_map(3,0.00001)
         quality = fmd_fingerprint.gt.quality
         min_x = fmd_fingerprint.gt.lst_min_posX
         min_y = fmd_fingerprint.gt.lst_min_posY
-        min_x = np.pad(min_x, (0, 100-len(min_x)), constant_values=(-1))
-        min_y = np.pad(min_y, (0, 100-len(min_y)), constant_values=(-1))
-
         x = torch.from_numpy(x.astype(np.single))
         y = torch.from_numpy(y.astype(np.single))
+        # y_b = torch.from_numpy(y_b.astype(np.single))
         x = torch.unsqueeze(x, 0)
         y = torch.unsqueeze(y, 0)
-
-        if list(x.shape) == [1, 374, 388]:
-            x = T.functional.pad(x, (126, 53))
-            y = T.functional.pad(y, (126, 53))
-        elif list(x.shape) == [1, 300, 300]:
-            x = T.functional.pad(x, (170, 90))
-            y = T.functional.pad(y, (170, 90))
-        elif list(x.shape) == [1, 480, 300]:
-            x = T.functional.pad(x, (170, 0))
-            y = T.functional.pad(y, (170, 0))
-
-        if self._resize:
-            x = T.functional.resize(x, [360, 360], antialias=True)
-            y = T.functional.resize(y, [360, 360], antialias=True)
+        # y_b = torch.unsqueeze(y_b, 0)
 
         if self._hflip and random.random() >= 0.5:
             x = T.functional.hflip(x)
             y = T.functional.hflip(y)
+            # y_b = T.functional.hflip(y_b)
+            min_x = x.shape[2] - min_x
 
         if self._rotate:
             angle = random.uniform(-20, 20)
-            x = T.functional.rotate(x, angle,
-                                    interpolation=T.InterpolationMode.BILINEAR)
-            y = T.functional.rotate(y, angle,
-                                    interpolation=T.InterpolationMode.BILINEAR)
+            int_type = T.InterpolationMode.NEAREST
+            x = T.functional.rotate(x, angle, interpolation=int_type)
+            y = T.functional.rotate(y, angle, interpolation=int_type)
+            # y_b = T.functional.rotate(y_b, angle, interpolation=int_type)
+            yc, xc = x.shape[1]/2, x.shape[2]/2
+            angle_r = np.deg2rad(-angle)
+            min_xx = np.cos(angle_r)*(min_x-xc) - np.sin(angle_r)*(min_y-yc) + xc
+            min_yy = np.sin(angle_r)*(min_x-xc) + np.cos(angle_r)*(min_y-yc) + yc
+            min_x = np.round(min_xx).astype(int)
+            min_y = np.round(min_yy).astype(int)
+        
+        if self._resize:
+            scale = random.uniform(0.8, 1.2)
+            H = int(x.shape[1] * scale)
+            W = int(x.shape[2] * scale)
+            x = T.functional.resize(x, [H, W], antialias=True)
+            y = T.functional.resize(y, [H, W], antialias=True)
+            # y_b = T.functional.resize(y_b, [H, W], antialias=True)
+            min_x = np.round(min_x * scale).astype(int)
+            min_y = np.round(min_y * scale).astype(int)
+
+        valid_ind = np.all((0 <= min_x, min_x < x.shape[2],
+                            0 <= min_y, min_y < x.shape[1]), axis=0)
+        min_x = min_x[valid_ind]
+        min_y = min_y[valid_ind]
+        y_b = np.zeros_like(x)
+        y_b[0, min_y, min_x] = 1
+        y_b = torch.from_numpy(y_b.astype(np.single))
+        y_b = torch.unsqueeze(y_b, 0)
+        x = T.functional.center_crop(x, [480, 640])
+        y = T.functional.center_crop(y, [480, 640])
+        y_b = T.functional.center_crop(y_b, [480, 640])
+
+        # if list(x.shape) == [1, 374, 388]:
+        #     x = T.functional.pad(x, (126, 53))
+        #     y = T.functional.pad(y, (126, 53))
+        #     y_b = T.functional.pad(y_b, (126, 53))
+        #     # min_x = min_x + 126
+        #     # min_y = min_y + 53
+        # elif list(x.shape) == [1, 300, 300]:
+        #     x = T.functional.pad(x, (170, 90))
+        #     y = T.functional.pad(y, (170, 90))
+        #     y_b = T.functional.pad(y_b, (170, 90))
+        #     # min_x = min_x + 170
+        #     # min_y = min_y + 90
+        # elif list(x.shape) == [1, 480, 300]:
+        #     x = T.functional.pad(x, (170, 0))
+        #     y = T.functional.pad(y, (170, 0))
+        #     y_b = T.functional.pad(y_b, (170, 0))
+        #     # min_x = min_x + 170
+
+        min_y = torch.nonzero(y_b)[:,1].numpy()
+        min_x = torch.nonzero(y_b)[:,2].numpy()
+        min_y = np.pad(min_y, (0, 100-len(min_y)), constant_values=(-1))
+        min_x = np.pad(min_x, (0, 100-len(min_x)), constant_values=(-1))
 
         x = T.functional.normalize(x, torch.mean(x), torch.std(x))
 

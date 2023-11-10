@@ -38,7 +38,7 @@ class FMDFingerprint:
                                                               self.gt.quality,
                                                               self.fp_fname)
 
-    def get_minutiae_map(self, kernel_size=13, sigma=2):
+    def get_minutiae_map(self, kernel_size=13, sigma=3):
         single_min_map_list = []
         num_min = len(self.gt.lst_min_angle)
         radius = kernel_size//2
