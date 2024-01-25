@@ -4,10 +4,10 @@ import torch.nn as nn
 
 
 class FOEConvNet(nn.Module):
-    def __init__(self):
+    def __init__(self, out_len=2, final_relu=False):
         super(FOEConvNet, self).__init__()
 
-        self.cnn_layers = nn.Sequential(
+        self.network = nn.Sequential(
             # Defining a 2D convolution layer
             nn.Conv2d(1, 36, kernel_size=7, stride=1, padding='same'),
             nn.MaxPool2d(kernel_size=2, stride=2),
@@ -36,13 +36,15 @@ class FOEConvNet(nn.Module):
             nn.Conv2d(512, 512, kernel_size=1, stride=1, padding='same'),
             nn.ReLU(inplace=True),
             # Defining another 2D convolution
-            nn.Conv2d(512, 2, kernel_size=1, stride=1, padding='same'),
+            nn.Conv2d(512, out_len, kernel_size=1, stride=1, padding='same'),
         )
+        if final_relu:
+            self.network.append(nn.ReLU(inplace=True))
 
         self.apply(self.init_weights)
 
     def forward(self, x):
-        return self.cnn_layers(x)
+        return self.network(x)
 
     def init_weights(self, m):
         if isinstance(m, nn.Conv2d):

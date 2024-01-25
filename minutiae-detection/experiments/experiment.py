@@ -84,7 +84,10 @@ def calc_accuracy(y_out, gt_min_yx, Td):
             dist_tmp[index[0], index[1]] = 9999
         TP = np.sum(match)
         Recall.append(TP / N)
-        Precision.append(TP / M)
+        if M > 0:
+            Precision.append(TP / M)
+        else:
+            Precision.append(0)
         F1.append(2 * TP / (M + N))
     return Recall, Precision, F1
 
@@ -94,7 +97,7 @@ print(device)
 # %%
 for fold in range(1):
     model = FMDConvNet(8)
-    # chk_dict = torch.load('../results/model_060.pt')
+    # chk_dict = torch.load('../results/model_100.pt')
     # mstate = chk_dict['mstate']
     # model.load_state_dict(mstate)
     model = model.to(device)

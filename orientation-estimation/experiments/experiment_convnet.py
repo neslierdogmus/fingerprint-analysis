@@ -5,21 +5,20 @@ import random
 import numpy as np
 import torch
 
-
 from foe_fp_image_dataset import FOEFPImageDataset
 from foe_model_convnet import FOEConvNet
 
 num_folds = 5
 use_cpu = False
 
-n_classes = 1
+n_classes = 256
 num_epochs = 10000
 batch_size = 1
 num_workers = 4
 num_synth = 0
 
 learning_rate = 10**-2
-gamma = 10**-3
+gamma = 10**-4
 power = 0.75
 weight_decay = 5*10**-6
 momentum = 0.5
@@ -27,9 +26,9 @@ momentum = 0.5
 use_gpu = torch.cuda.is_available() and not use_cpu
 device = 'cuda' if use_gpu else 'cpu'
 
-base_path_bad = 'datasets/foe/Bad'
-base_path_good = 'datasets/foe/Good'
-base_path_synth = 'datasets/foe/Synth'
+base_path_bad = '../../datasets/foe/Bad'
+base_path_good = '../../datasets/foe/Good'
+base_path_synth = '../../datasets/foe/Synth'
 
 
 def split_database(base_path, num_folds):
@@ -74,6 +73,24 @@ def calc_rmse(output_exp, output_pre, mask):
 
     return degrees_rmse
 
+def calc_rmse2(output_exp, output_pre, mask, n_classes):
+    output_exp = output_exp.cpu().detach().numpy()
+    radians_exp = np.argmax(output_exp, axis=1)/n_classes*np.pi
+    degrees_exp = radians_exp / np.pi * 180
+
+    output_pre = output_pre.cpu().detach().numpy()
+    radians_pre = np.argmax(output_pre, axis=1)/n_classes*np.pi
+    degrees_pre = radians_pre / np.pi * 180
+
+    degrees_diff = np.abs(degrees_exp - degrees_pre)
+    degrees_diff = np.where(degrees_diff > 90, 180-degrees_diff, degrees_diff)
+
+    mask = mask.cpu().detach().numpy()
+    degrees_se = np.sum(np.power(degrees_diff, 2) * mask)
+    degrees_rmse = np.sqrt(degrees_se / np.sum(mask))
+
+    return degrees_rmse
+
 
 parts_bad = split_database(base_path_bad, num_folds)
 parts_good = split_database(base_path_good, num_folds)
@@ -83,7 +100,7 @@ print(device)
 
 # %%
 for fold in range(num_folds):
-    model = FOEConvNet()
+    model = FOEConvNet(out_len=n_classes, final_relu=True)
     model = model.to(device)
     print(sum(p.numel() for p in model.parameters()))
 
@@ -106,10 +123,10 @@ for fold in range(num_folds):
                                        [fp_ids_bad_tra, fp_ids_good_tra,
                                         fp_ids_synth_tra],
                                        n_classes)
-    foe_img_ds_val.set_hflip()
-    foe_img_ds_tra.set_hflip()
-    foe_img_ds_val.set_rotate()
-    foe_img_ds_tra.set_rotate()
+    #foe_img_ds_val.set_hflip()
+    #foe_img_ds_tra.set_hflip()
+    #foe_img_ds_val.set_rotate()
+    #foe_img_ds_tra.set_rotate()
     foe_img_dl_val = torch.utils.data.DataLoader(foe_img_ds_val,
                                                  batch_size=batch_size,
                                                  num_workers=num_workers,
@@ -130,8 +147,10 @@ for fold in range(num_folds):
             mask = mask.to(device)
             optimizer.zero_grad()
             y_out = model(x)
-            loss = torch.nn.functional.mse_loss(y, y_out, reduction='none')
-            loss = torch.sum(loss, dim=1) * mask
+            # loss = torch.nn.functional.mse_loss(y_out, y, reduction='none')
+            # loss = torch.sum(loss, dim=1) * mask
+            loss = torch.nn.functional.cross_entropy(y_out, y, reduction='none')
+            loss = loss * mask
             loss = torch.sum(loss) / torch.sum(mask)
             loss.backward()
             optimizer.step()
@@ -156,9 +175,9 @@ for fold in range(num_folds):
                     y_out = model(x)
                     for fpt in fp_type:
                         if fpt == 'Bad':
-                            rmse_bad_tra.append(calc_rmse(y, y_out, mask))
+                            rmse_bad_tra.append(calc_rmse2(y, y_out, mask, n_classes))
                         elif fpt == 'Good':
-                            rmse_good_tra.append(calc_rmse(y, y_out, mask))
+                            rmse_good_tra.append(calc_rmse2(y, y_out, mask, n_classes))
                 print(np.mean(rmse_bad_tra), np.mean(rmse_good_tra))
 
                 total_loss = 0.0
@@ -180,9 +199,11 @@ for fold in range(num_folds):
                     degrees_mse = degrees_se / np.sum(maskd)
                     for fpt in fp_type:
                         if fpt == 'Bad':
-                            rmse_bad_val.append(calc_rmse(y, y_out, mask))
+                            # rmse_bad_val.append(calc_rmse(y, y_out, mask))
+                            rmse_bad_val.append(calc_rmse2(y, y_out, mask, n_classes))
                         elif fpt == 'Good':
-                            rmse_good_val.append(calc_rmse(y, y_out, mask))
+                            # rmse_good_val.append(calc_rmse(y, y_out, mask))
+                            rmse_good_val.append(calc_rmse2(y, y_out, mask, n_classes))
                 print(np.mean(rmse_bad_val), np.mean(rmse_good_val))
 
 # %%

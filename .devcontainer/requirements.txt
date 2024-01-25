@@ -1,6 +1,6 @@
 torch
 torchvision
-scipy
+scikit-learn
 scikit-image
 flake8
 matplotlib

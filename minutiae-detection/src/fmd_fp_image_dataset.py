@@ -110,8 +110,8 @@ class FMDFPImageDataset(Dataset):
         #     y_b = T.functional.pad(y_b, (170, 0))
         #     # min_x = min_x + 170
 
-        min_y = torch.nonzero(y_b)[:,1].numpy()
-        min_x = torch.nonzero(y_b)[:,2].numpy()
+        min_y = torch.nonzero(y_b)[:,2].numpy()
+        min_x = torch.nonzero(y_b)[:,3].numpy()
         min_y = np.pad(min_y, (0, 100-len(min_y)), constant_values=(-1))
         min_x = np.pad(min_x, (0, 100-len(min_x)), constant_values=(-1))
 

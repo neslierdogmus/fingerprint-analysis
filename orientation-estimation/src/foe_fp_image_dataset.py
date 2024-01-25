@@ -94,25 +94,33 @@ class FOEFPImageDataset(Dataset):
                         orientations[0, r, c] += angle_radian
                         if orientations[0, r, c] >= np.pi:
                             orientations[0, r, c] -= np.pi
+                        elif orientations[0, r, c] < 0:
+                            orientations[0, r, c] += np.pi
+                        if orientations[0, r, c] == np.pi:
+                            orientations[0, r, c] = 0
             x = tf.rotate(x, angle, interpolation=PIL.Image.BILINEAR)
             orientations = tf.rotate(orientations, angle)
             mask = tf.rotate(mask, angle)
 
         mask = mask.squeeze()
-        gt_in_sincos = np.vstack((np.sin(2*orientations),
-                                  np.cos(2*orientations)))
+        
 
         if self.n_classes == 1:
-            y = gt_in_sincos
+            y = np.vstack((np.sin(2*orientations),
+                                     np.cos(2*orientations)))
+            y = torch.from_numpy(y.astype(np.single))
+
         else:
             # TODO: orientation class is not to be used
             # y = ori.class_id(self.n_classes)
             # y = ori.ordinal_code(self.n_classes)
-            y = np.array([ori.ordinal_code(self.n_classes)
-                          for row in orientations
-                          for ori in row])
-
-        y = torch.from_numpy(y.astype(np.single))
+            #y = np.array([ori.ordinal_code(self.n_classes)
+            #              for row in orientations
+            #              for ori in row])
+            y = torch.nn.functional.one_hot((orientations[0]/np.pi * 
+                                             self.n_classes).long(),
+                                            self.n_classes).permute(2,0,1)
+            y = y.float()
 
         return x, y, mask, orientations, foe_fingerprint.fp_type, index
 
