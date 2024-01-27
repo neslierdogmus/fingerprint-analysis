@@ -62,10 +62,10 @@ def calc_accuracy(y_out, gt_min_yx, Td):
     for i in range(y_out.shape[0]):
         yi_out = y_out[i, 0, :, :]
         output = yi_out.cpu().detach().numpy()
-        output[output<0] = 0
+        output[output < 0] = 0
         est_yx = peak_local_max(output, min_distance=3)
         gt_m_yx = np.array(gt_min_yx)[:, i, :].transpose()
-        gt_m_yx = gt_m_yx[gt_m_yx[:,0]>0,:]
+        gt_m_yx = gt_m_yx[gt_m_yx[:, 0] > 0, :]
         M = len(est_yx)
         N = len(gt_m_yx)
         dist = np.zeros((M, N))

@@ -7,6 +7,7 @@ import torch
 
 from foe_fp_image_dataset import FOEFPImageDataset
 from foe_model_convnet import FOEConvNet
+import utils
 
 num_folds = 5
 use_cpu = False
@@ -205,5 +206,3 @@ for fold in range(num_folds):
                             # rmse_good_val.append(calc_rmse(y, y_out, mask))
                             rmse_good_val.append(calc_rmse2(y, y_out, mask, n_classes))
                 print(np.mean(rmse_bad_val), np.mean(rmse_good_val))
-
-# %%
