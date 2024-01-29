@@ -11,14 +11,13 @@ from foe_fingerprint import FOEFingerprint
 
 
 class FOEFPImageDataset(Dataset):
-    def __init__(self, base_path_list, fp_ids_list, n_classes=1):
+    def __init__(self, base_path_list, fp_ids_list):
         super(FOEFPImageDataset).__init__()
         assert len(base_path_list) == len(fp_ids_list), ("Path and fingerprint"
                                                          " ids lists should "
                                                          " have equal length.")
         self.base_path_list = base_path_list
         self.fp_ids_list = fp_ids_list
-        self.n_classes = n_classes
         self._hflip = False
         self._rotate = False
         self.fps = []
@@ -101,28 +100,10 @@ class FOEFPImageDataset(Dataset):
             x = tf.rotate(x, angle, interpolation=PIL.Image.BILINEAR)
             orientations = tf.rotate(orientations, angle)
             mask = tf.rotate(mask, angle)
-
-        mask = mask.squeeze()
         
+        mask = mask.squeeze()
 
-        if self.n_classes == 1:
-            y = np.vstack((np.sin(2*orientations),
-                                     np.cos(2*orientations)))
-            y = torch.from_numpy(y.astype(np.single))
-
-        else:
-            # TODO: orientation class is not to be used
-            # y = ori.class_id(self.n_classes)
-            # y = ori.ordinal_code(self.n_classes)
-            #y = np.array([ori.ordinal_code(self.n_classes)
-            #              for row in orientations
-            #              for ori in row])
-            y = torch.nn.functional.one_hot((orientations[0]/np.pi * 
-                                             self.n_classes).long(),
-                                            self.n_classes).permute(2,0,1)
-            y = y.float()
-
-        return x, y, mask, orientations, foe_fingerprint.fp_type, index
+        return x, orientations, mask, foe_fingerprint.fp_type, index
 
     def __len__(self):
         return len(self.fps)
