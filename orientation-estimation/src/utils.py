@@ -1,21 +1,24 @@
 import torch
 import numpy as np
 from scipy.cluster.vq import kmeans2
+from scipy.cluster.vq import ClusterError
 from matplotlib import pyplot as plt
+
 
 def angle_to_sincos(oris):
     sincos = np.append(np.sin(2*oris), np.cos(2*oris), axis=1)
 
     return sincos.astype(np.single)
 
+
 def discretize_orientation(method, num_class=32, num_disc=8, sample=None):
     valid_methods = ["eq_len", "eq_prob", "k_means"]
     assert method in valid_methods, "not a valid discretization method"
-    
+
     if method != "eq_len":
         assert sample is not None, "For the given method, a sample\
                                     should be provided."
-    
+
     discs = []
     for i in range(num_disc):
         if method == "eq_len":
@@ -24,7 +27,7 @@ def discretize_orientation(method, num_class=32, num_disc=8, sample=None):
         else:
             oris = [ori for fp in sample.fps
                     for (oris, mask) in zip(fp.gt.orientations, fp.gt.mask)
-                    for (ori,m) in zip(oris, mask) if m>0]
+                    for (ori, m) in zip(oris, mask) if m>0]
             oris = np.array(oris)
             if method == "eq_prob":
                 assert num_class <= 143, "The number of classes should be\
@@ -32,9 +35,9 @@ def discretize_orientation(method, num_class=32, num_disc=8, sample=None):
                                           all orientations to the size of the\
                                           largest orientation set."
                 oris.sort()
-                shift = sum(oris>=np.unique(oris)[i*int(360/num_class)])
+                shift = sum(oris >= np.unique(oris)[i*int(360/num_class)])
                 oris = np.roll(oris, shift)
-                samples_per_bin = int(len(oris)/num_class) 
+                samples_per_bin = int(len(oris)/num_class)
                 edge_samples = np.arange(num_class) * samples_per_bin
                 disc = np.sort(oris[edge_samples])
                 disc = np.append(disc, [disc[0]+np.pi])
@@ -44,12 +47,12 @@ def discretize_orientation(method, num_class=32, num_disc=8, sample=None):
                     try:
                         shift = np.random.random() * np.pi / 2
                         oris_shifted = oris + shift
-                        oris_shifted[oris_shifted>np.pi] -= np.pi
+                        oris_shifted[oris_shifted > np.pi] -= np.pi
                         _, clusters = kmeans2(oris_shifted, num_class,
                                                       minit='random',
                                                       missing='raise')                        
                         complete = True
-                    except:
+                    except ClusterError:
                         complete = False
                         
                 disc = [oris[clusters==i].min() for i in range(num_class)]
@@ -108,7 +111,8 @@ def view_discretization(discs, sample=None):
                                  '$\pi/2$', '$3\pi/4$'])
             ax2.set_yticks([2000,3000,4000])
             ax2.set_yticklabels([1000,2000,3000])
-            
+
+     
 def encode_angle(oris, method, disc):
     valid_methods = ["one_hot", "ordinal", "cyclic"]
     assert method in valid_methods, "not a valid encoding method"
@@ -139,6 +143,7 @@ def encode_angle(oris, method, disc):
 
     return codes
 
+
 def view_codes(discs):
     methods = ["one_hot", "ordinal", "cyclic"]
     M = len(discs)
@@ -157,27 +162,36 @@ def view_codes(discs):
             ax = axes[i][j]
             ax.imshow(1-codes[0,0], cmap='binary', aspect='auto', 
                         interpolation='nearest')
-            
+
+ 
 def decode_angle(outputs, method, discs, regression='max'):
     valid_methods = ["one_hot", "ordinal", "cyclic"]
     assert method in valid_methods, "not a valid encoding method"
         
     M = len(discs)
     L = len(discs[0]) - 1
+    dim = list(outputs.size())
+    dim[1] = M
+    oris = np.zeros(dim)
     for i in range(M):
         disc = discs[i]
-        bin_centers = np.array([(disc[i+1]-disc[i])/2 for i in range(L)])
+        bin_centers = np.array([(disc[j+1]-disc[j])/2 for j in range(L)])
         bin_centers[bin_centers > np.pi] -= np.pi
         if method == 'one_hot':
-            val_regress = ['max', 'expectation']
+            val_regress = ['max', 'exp']
             assert regression in val_regress, "not a valid regression method"
+            out_np = outputs[:, i*L:(i+1)*L].cpu().detach().numpy()
             if regression == 'max':
-                pass
+                labels = np.argmax(out_np, axis=1)
+                oris[:, i] = bin_centers[labels]
             else:
-                pass 
+                oris[:, i] = np.sum(out_np * bin_centers[None, :, None, None],
+                                   axis=1)
         elif method == 'ordinal':
+            out_np = outputs[:, i*(L-1):(i+1)*(L-1)].cpu().detach().numpy()
             pass
         else:
+            out_np = outputs[:, i*(L//2):(i+1)*(L//2)].cpu().detach().numpy()
             pass
     
 
