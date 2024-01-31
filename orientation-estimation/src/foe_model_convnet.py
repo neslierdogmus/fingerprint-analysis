@@ -4,7 +4,7 @@ import torch.nn as nn
 
 
 class FOEConvNet(nn.Module):
-    def __init__(self, out_len=2, final_relu=False):
+    def __init__(self, out_len):
         super(FOEConvNet, self).__init__()
 
         self.network = nn.Sequential(
@@ -38,12 +38,10 @@ class FOEConvNet(nn.Module):
             # Defining another 2D convolution
             nn.Conv2d(512, out_len, kernel_size=1, stride=1, padding='same'),
         )
-        if final_relu:
-            self.network.append(nn.ReLU(inplace=True))
 
         self.apply(self.init_weights)
 
-    def forward(self, x):
+    def forward(self, x):       
         return self.network(x)
 
     def init_weights(self, m):

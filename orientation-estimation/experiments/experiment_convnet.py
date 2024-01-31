@@ -13,12 +13,12 @@ import utils
 num_folds = 5
 use_cpu = False
 
-num_epochs = 10000
+num_epochs = 400
 batch_size = 2
 num_workers = 4
 num_synth = 0
 
-learning_rate = 10**-2
+learning_rate = 10**-3
 gamma = 10**-4
 power = 0.75
 weight_decay = 5*10**-6
@@ -31,12 +31,18 @@ encoding_method = 'one_hot'
 
 if n_class == 0:
     K = 2
+    loss_fnc = F.mse_loss
 elif encoding_method == 'one_hot':
     K = n_disc * n_class
-elif encoding_method == 'ordinal':
-    K = n_disc * (n_class-1)
-elif encoding_method == 'cyclic':
-    K = n_disc * n_class / 2
+    loss_fnc = F.cross_entropy
+    prob_fnc = F.softmax
+else:
+    loss_fnc = F.binary_cross_entropy_with_logits
+    prob_fnc = F.sigmoid
+    if encoding_method == 'ordinal':
+        K = n_disc * (n_class-1)
+    elif encoding_method == 'cyclic':
+        K = n_disc * n_class / 2
 
 use_gpu = torch.cuda.is_available() and not use_cpu
 device = 'cuda' if use_gpu else 'cpu'
@@ -46,6 +52,7 @@ base_path_bad = '../../datasets/foe/Bad'
 base_path_good = '../../datasets/foe/Good'
 base_path_synth = '../../datasets/foe/Synth'
 
+
 def split_database(base_path, num_folds):
     index_path = os.path.join(base_path, 'index.txt')
     with open(index_path, 'r') as fin:
@@ -54,9 +61,11 @@ def split_database(base_path, num_folds):
     parts = np.array_split(fp_ids, num_folds)
     return parts
 
+
 parts_bad = split_database(base_path_bad, num_folds)
 parts_good = split_database(base_path_good, num_folds)
 parts_synth = split_database(base_path_synth, 1)
+
 
 # %%
 def construct_lr_lambda(gamma, power):
@@ -64,7 +73,8 @@ def construct_lr_lambda(gamma, power):
         return (1 + gamma * epoch) ** (-power)
     return lr_lambda
 
-for fold in range(num_folds):
+
+for fold in range(1):
     fp_ids_bad_val = parts_bad[fold]
     fp_ids_bad_tra = np.append(parts_bad[:fold], parts_bad[fold+1:])
     fp_ids_good_val = parts_good[fold]
@@ -76,10 +86,10 @@ for fold in range(num_folds):
                                         base_path_synth],
                                        [fp_ids_bad_tra, fp_ids_good_tra,
                                         fp_ids_synth_tra])
-    #foe_img_ds_val.set_hflip()
-    #foe_img_ds_tra.set_hflip()
-    #foe_img_ds_val.set_rotate()
-    #foe_img_ds_tra.set_rotate()
+    # foe_img_ds_val.set_hflip()
+    # foe_img_ds_tra.set_hflip()
+    # foe_img_ds_val.set_rotate()
+    # foe_img_ds_tra.set_rotate()
     foe_img_dl_val = torch.utils.data.DataLoader(foe_img_ds_val,
                                                  batch_size=batch_size,
                                                  num_workers=num_workers,
@@ -95,8 +105,8 @@ for fold in range(num_folds):
     else:
         discs = utils.discretize_orientation(disc_method, n_class, n_disc,
                                              sample=None)
-    
-    model = FOEConvNet(out_len=K, final_relu=(n_class != 0))
+
+    model = FOEConvNet(out_len=K)
     model = model.to(device)
     print(sum(p.numel() for p in model.parameters()))
 
@@ -106,47 +116,63 @@ for fold in range(num_folds):
                                 weight_decay=weight_decay)
     lr_lambda = construct_lr_lambda(gamma, power)
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
-                                                    lr_lambda=lr_lambda)
+                                                  lr_lambda=lr_lambda)
     for e in range(num_epochs):
         model.train()
         total_loss = 0.0
-        for xi, orientations, mask, fp_type, index in foe_img_dl_tra:
-            x = xi.to(device)
+        rmse_bad = []
+        rmse_good = []
+        for x, orientations, mask, fp_type, index in foe_img_dl_tra:
+            x = x.to(device)
             if n_class == 0:
-                yi = utils.angle_to_sincos(orientations)
+                yt = utils.angle_to_sincos(orientations)
             else:
-                yi = None
+                yt = None
                 for disc in discs:
-                    if yi is None:
-                        yi = utils.encode_angle(orientations, encoding_method,
+                    if yt is None:
+                        yt = utils.encode_angle(orientations, encoding_method,
                                                 disc)
                     else:
-                        yi = np.append(yi, utils.encode_angle(orientations,
-                                                              encoding_method,
-                                                              disc), 1)
-            y = torch.from_numpy(yi).to(device)
+                        yt = torch.cat((yt, utils.encode_angle(orientations,
+                                                               encoding_method,
+                                                               disc)), dim=1)
+            yt = yt.to(device)
             mask = mask.to(device)
             optimizer.zero_grad()
-            y_out = model(x)
-            # loss = F.mse_loss(y_out, y, reduction='none')
-            # loss = torch.sum(loss, dim=1) * mask
+            yo = model(x)
             loss = 0
             for i in range(n_disc):
-                if encoding_method == 'one_hot':
-                    loss += F.cross_entropy(y_out[:,i*n_class:(i+1)*n_class],
-                                            y[:,i*n_class:(i+1)*n_class],
-                                            reduction='none')
-                elif encoding_method == 'ordinal':
-                    pass
-                elif encoding_method == 'cyclic':
-                    pass
+                loss += loss_fnc(yo[:, i*n_class:(i+1)*n_class],
+                                 yt[:, i*n_class:(i+1)*n_class],
+                                 reduction='none')
             loss = loss * mask
             loss = torch.sum(loss) / torch.sum(mask)
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
             scheduler.step()
+
+            if e % 100 == 99:
+                mask_np = mask.cpu().detach().numpy()
+                dim = list(orientations.size())
+                dim.insert(1, n_disc)
+                estimations = np.zeros(dim)
+                for i in range(n_disc):
+                    probs = prob_fnc(yo[:, i*n_class:(i+1)*n_class])
+                    est = utils.decode_angle(probs, encoding_method, disc)
+                    estimations[:, i] = est*mask_np
+                estimations = np.mean(estimations, axis=1)
+
+                new_rmse = utils.calc_rmse(orientations, estimations, mask_np)
+                for er, t in zip(new_rmse, fp_type):
+                    if t == 'Good':
+                        rmse_good = np.append(rmse_good, [er])
+                    elif t == 'Bad':
+                        rmse_bad = np.append(rmse_bad, [er])
+
         print(e, total_loss / len(foe_img_dl_tra), scheduler.get_last_lr())
+        if e % 100 == 99:
+            print(np.mean(rmse_good), np.mean(rmse_bad))
 
         # if e % 20 == 0:
         #     if e % 100 == 0:
@@ -158,34 +184,28 @@ for fold in range(num_folds):
         #         total_loss = 0.0
         #         rmse_bad_tra = []
         #         rmse_good_tra = []
-        #         for (xi, orientations, mask, fp_type,index) in foe_img_dl_tra:
+        #         for (xi, orientations, mask, fp_type,
+        #              index) in foe_img_dl_tra:
         #             x = xi.to(device)
         #             y = yi.to(device)
         #             y_out = model(x)
         #             for fpt in fp_type:
         #                 if fpt == 'Bad':
-        #                     rmse_bad_tra.append(utils.calc_rmse2(y, y_out, mask, n_class))
+        #                     rmse_bad_tra.append(utils.calc_rmse2(y, y_out,
+        #                                                          mask,
+        #                                                          n_class))
         #                 elif fpt == 'Good':
-        #                     rmse_good_tra.append(utils.calc_rmse2(y, y_out, mask, n_class))
+        #                     rmse_good_tra.append(utils.calc_rmse2(y, y_out,
+        #                                                           mask,
+        #                                                           n_class))
         #         print(np.mean(rmse_bad_tra), np.mean(rmse_good_tra))
 
         #         total_loss = 0.0
         #         rmse_bad_val = []
         #         rmse_good_val = []
-        #         for (xi, orientations, mask, fp_type, index) in foe_img_dl_val:
+        #         for (xi, orientations, mask, fp_type,
+        #              index) in foe_img_dl_val:
         #             x = xi.to(device)
-        #             if n_class == 0:
-        #                 yi = utils.angle_to_sincos(orientations)
-        #             else:
-        #                 yi = None
-        #                 for disc in discs:
-        #                     if yi is None:
-        #                         yi = utils.encode_angle(orientations, encoding_method,
-        #                                                 disc)
-        #                     else:
-        #                         yi = np.append(yi, utils.encode_angle(orientations,
-        #                                                             encoding_method,
-        #                                                             disc), 1)
         #             y = torch.from_numpy(yi).to(device)
         #             y_out = model(x)
         #             yd = y.cpu().detach().numpy()
@@ -200,8 +220,13 @@ for fold in range(num_folds):
         #             for fpt in fp_type:
         #                 if fpt == 'Bad':
         #                     # rmse_bad_val.append(calc_rmse(y, y_out, mask))
-        #                     rmse_bad_val.append(utils.calc_rmse2(y, y_out, mask, n_classes))
+        #                     rmse_bad_val.append(utils.calc_rmse2(y, y_out,
+        #                                                          mask,
+        #                                                          n_classes))
         #                 elif fpt == 'Good':
         #                     # rmse_good_val.append(calc_rmse(y, y_out, mask))
-        #                     rmse_good_val.append(utils.calc_rmse2(y, y_out, mask, n_classes))
+        #                     rmse_good_val.append(utils.calc_rmse2(y, y_out,
+        #                                                              mask,
+        #                                                              n_classes))
         #         print(np.mean(rmse_bad_val), np.mean(rmse_good_val))
+# %%

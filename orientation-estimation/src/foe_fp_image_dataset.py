@@ -100,8 +100,9 @@ class FOEFPImageDataset(Dataset):
             x = tf.rotate(x, angle, interpolation=PIL.Image.BILINEAR)
             orientations = tf.rotate(orientations, angle)
             mask = tf.rotate(mask, angle)
-        
+
         mask = mask.squeeze()
+        orientations = orientations.squeeze()
 
         return x, orientations, mask, foe_fingerprint.fp_type, index
 
