@@ -13,12 +13,12 @@ import utils
 num_folds = 5
 use_cpu = False
 
-num_epochs = 400
+num_epochs = 301
 batch_size = 2
 num_workers = 4
 num_synth = 0
 
-learning_rate = 10**-3
+learning_rate = 3*10**-3
 gamma = 10**-4
 power = 0.75
 weight_decay = 5*10**-6
@@ -120,23 +120,18 @@ for fold in range(1):
     for e in range(num_epochs):
         model.train()
         total_loss = 0.0
-        rmse_bad = []
         rmse_good = []
+        rmse_bad = []
+        macc_good = []
+        macc_bad = []
         for x, orientations, mask, fp_type, index in foe_img_dl_tra:
             x = x.to(device)
             if n_class == 0:
                 yt = utils.angle_to_sincos(orientations)
             else:
-                yt = None
-                for disc in discs:
-                    if yt is None:
-                        yt = utils.encode_angle(orientations, encoding_method,
-                                                disc)
-                    else:
-                        yt = torch.cat((yt, utils.encode_angle(orientations,
-                                                               encoding_method,
-                                                               disc)), dim=1)
+                yt = utils.encode_angle(orientations, encoding_method, discs)
             yt = yt.to(device)
+
             mask = mask.to(device)
             optimizer.zero_grad()
             yo = model(x)
@@ -152,27 +147,36 @@ for fold in range(1):
             total_loss += loss.item()
             scheduler.step()
 
-            if e % 100 == 99:
+            if e % 10 == 0:
                 mask_np = mask.cpu().detach().numpy()
                 dim = list(orientations.size())
                 dim.insert(1, n_disc)
-                estimations = np.zeros(dim)
+                ests = np.zeros(dim)
                 for i in range(n_disc):
                     probs = prob_fnc(yo[:, i*n_class:(i+1)*n_class])
-                    est = utils.decode_angle(probs, encoding_method, disc)
-                    estimations[:, i] = est*mask_np
-                estimations = np.mean(estimations, axis=1)
+                    est = utils.decode_angle(probs, encoding_method, discs[i],
+                                             regression='max')
+                    ests[:, i] = est*mask_np
+                # circular mean
+                ests = np.arctan2(np.mean(np.sin(ests*2), axis=1),
+                                  np.mean(np.cos(ests*2), axis=1))
+                ests = np.where(ests < 0, ests+2*np.pi, ests) / 2
 
-                new_rmse = utils.calc_rmse(orientations, estimations, mask_np)
-                for er, t in zip(new_rmse, fp_type):
+                new_rmse = utils.calc_rmse(orientations, ests, mask_np)
+                new_macc = utils.calc_class_acc(yo, yt, mask_np, n_class,
+                                                n_disc)
+                for er, ac, t in zip(new_rmse, new_macc, fp_type):
                     if t == 'Good':
                         rmse_good = np.append(rmse_good, [er])
+                        macc_good = np.append(macc_good, [ac])
                     elif t == 'Bad':
                         rmse_bad = np.append(rmse_bad, [er])
+                        macc_bad = np.append(macc_bad, [ac])
 
         print(e, total_loss / len(foe_img_dl_tra), scheduler.get_last_lr())
-        if e % 100 == 99:
-            print(np.mean(rmse_good), np.mean(rmse_bad))
+        if e % 10 == 0:
+            print('>'*10, np.mean(rmse_good), np.mean(rmse_bad))
+            print('>'*10, np.mean(macc_good), np.mean(macc_bad))
 
         # if e % 20 == 0:
         #     if e % 100 == 0:

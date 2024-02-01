@@ -112,34 +112,38 @@ def view_discretization(discs, sample=None):
             ax2.set_yticklabels([1000, 2000, 3000])
 
 
-def encode_angle(oris, method, disc):
+def encode_angle(oris, method, discs):
     valid_methods = ["one_hot", "ordinal", "cyclic"]
     assert method in valid_methods, "not a valid encoding method"
 
-    L = len(disc) - 1
-    if method == 'cyclic':
-        code_len = L//2
-        codes_dim = list(oris.size())
-        codes_dim.insert(1, code_len)
-        codes = np.zeros(codes_dim)
-        for i in range(codes_dim[0]):
-            for j in range(codes_dim[1]):
-                for k in range(codes_dim[2]):
-                    for m in range(codes_dim[3]):
-                        c = int(disc[j] < oris[i, k, m] <= disc[j+code_len])
-                        codes[i, j, k, m] = c
-    else:
-        bin_num = np.digitize(oris, np.append([0], disc)) - 1
-        bin_num[bin_num == bin_num.max()] = 0
-        if method == 'one_hot':
-            codes = np.identity(L)[bin_num]
-        elif method == 'ordinal':
-            code_array = np.array([np.pad(np.ones(i), (0, L-1-i))
-                                   for i in range(L)])
-            codes = code_array[bin_num]
-        codes = np.moveaxis(codes, 3, 1)
+    codes_dim = list(oris.size())
+    codes_dim.insert(1, 0)
+    all_codes = torch.empty(codes_dim)
+    for disc in discs:
+        L = len(disc) - 1
+        if method == 'cyclic':
+            code_len = L//2
+            codes_dim.insert(1, code_len)
+            codes = np.zeros(codes_dim)
+            for i in range(codes_dim[0]):
+                for j in range(codes_dim[1]):
+                    for k in range(codes_dim[2]):
+                        for m in range(codes_dim[3]):
+                            c = disc[j] < oris[i, k, m] <= disc[j+code_len]
+                            codes[i, j, k, m] = int(c)
+        else:
+            bin_num = np.digitize(oris, disc) - int(disc[0] == 0)
+            bin_num[bin_num == L] = 0
+            if method == 'one_hot':
+                codes = np.identity(L)[bin_num]
+            elif method == 'ordinal':
+                code_array = np.array([np.pad(np.ones(i), (0, L-1-i))
+                                       for i in range(L)])
+                codes = code_array[bin_num]
+            codes = np.moveaxis(codes, 3, 1)
+        all_codes = torch.cat((all_codes, torch.from_numpy(codes)), dim=1)
 
-    return torch.from_numpy(codes)
+    return all_codes
 
 
 def view_codes(discs):
@@ -168,17 +172,22 @@ def decode_angle(outputs, method, disc, regression='max'):
 
     out_np = outputs.cpu().detach().numpy()
 
-    bin_centers = np.array([(disc[j+1]+disc[j])/2
-                            for j in range(len(disc) - 1)])
-    bin_centers[bin_centers > np.pi] -= np.pi
+    bin_cen = np.array([(disc[j+1]+disc[j])/2 for j in range(len(disc) - 1)])
+    bin_cen[bin_cen > np.pi] -= np.pi
+    bin_cen.sort()
     if method == 'one_hot':
         val_regress = ['max', 'exp']
         assert regression in val_regress, "not a valid regression method"
         if regression == 'max':
             labels = np.argmax(out_np, axis=1)
-            oris = bin_centers[labels]
+            oris = bin_cen[labels]
         else:
-            oris = np.sum(out_np * bin_centers[None, :, None, None], axis=1)
+            # circular expected value
+            exp_sin = np.sum(out_np * np.sin(bin_cen[None, :, None, None] * 2),
+                             axis=1)
+            exp_cos = np.sum(out_np * np.cos(bin_cen[None, :, None, None] * 2),
+                             axis=1)
+            oris = np.arctan2(exp_sin, exp_cos) / 2
     elif method == 'ordinal':
         pass
     else:
@@ -187,15 +196,29 @@ def decode_angle(outputs, method, disc, regression='max'):
     return oris
 
 
-def calc_rmse(oris, ests, mask_np):
+def calc_class_acc(yo, yt, mask_np, n_class, n_disc):
+    num_total = np.sum(mask_np, axis=(1, 2))
+    yo_np = yo.cpu().detach().numpy()
+    yt_np = yt.cpu().detach().numpy()
+    acc = []
+    for i in range(n_disc):
+        yoi = yo_np[:, i*n_class:(i+1)*n_class]
+        yti = yt_np[:, i*n_class:(i+1)*n_class]
+        num_corr = np.sum((yoi.argmax(axis=1) == yti.argmax(axis=1)) * mask_np,
+                          axis=(1, 2))
+        acc.append(num_corr / num_total)
 
+    return np.mean(acc, axis=0)
+
+
+def calc_rmse(oris, ests, mask_np):
     oris_np = oris.numpy()
     oris_np_degrees = oris_np / np.pi * 180
     ests_degrees = ests / np.pi * 180
     diff_degrees = np.abs(oris_np_degrees - ests_degrees)
     diff_degrees = np.where(diff_degrees > 90, 180-diff_degrees, diff_degrees)
     se_degrees = np.sum(np.power(diff_degrees, 2), axis=(1, 2))
-    rmse_degrees = np.sqrt(se_degrees / np.sum(mask_np))
+    rmse_degrees = np.sqrt(se_degrees / np.sum(mask_np, axis=(1, 2)))
 
     return rmse_degrees
 
