@@ -1,7 +1,4 @@
 # %%
-import os
-import random
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -13,68 +10,31 @@ import utils
 num_folds = 5
 use_cpu = False
 
-num_epochs = 301
-batch_size = 2
+num_epochs = 101
+batch_size = 1
 num_workers = 4
 num_synth = 0
 
-learning_rate = 3*10**-3
+learning_rate = 10**-3
 gamma = 10**-4
 power = 0.75
 weight_decay = 5*10**-6
 momentum = 0.5
 
-n_class = 32    # 32/256 - 0 for sin/cos regression
-n_disc = 8      # 8/1
-disc_method = 'eq_len'
-encoding_method = 'one_hot'
-
-if n_class == 0:
-    K = 2
-    loss_fnc = F.mse_loss
-elif encoding_method == 'one_hot':
-    K = n_disc * n_class
-    loss_fnc = F.cross_entropy
-    prob_fnc = F.softmax
-else:
-    loss_fnc = F.binary_cross_entropy_with_logits
-    prob_fnc = F.sigmoid
-    if encoding_method == 'ordinal':
-        K = n_disc * (n_class-1)
-    elif encoding_method == 'cyclic':
-        K = n_disc * n_class / 2
-
 use_gpu = torch.cuda.is_available() and not use_cpu
 device = 'cuda' if use_gpu else 'cpu'
 print(device)
 
-base_path_bad = '../../datasets/foe/Bad'
-base_path_good = '../../datasets/foe/Good'
-base_path_synth = '../../datasets/foe/Synth'
+base_path_bad = './datasets/foe/Bad'
+base_path_good = './datasets/foe/Good'
+base_path_synth = './datasets/foe/Synth'
 
-
-def split_database(base_path, num_folds):
-    index_path = os.path.join(base_path, 'index.txt')
-    with open(index_path, 'r') as fin:
-        fp_ids = [line.split('.')[0] for line in fin.readlines()[1:]]
-    random.shuffle(fp_ids)
-    parts = np.array_split(fp_ids, num_folds)
-    return parts
-
-
-parts_bad = split_database(base_path_bad, num_folds)
-parts_good = split_database(base_path_good, num_folds)
-parts_synth = split_database(base_path_synth, 1)
-
+parts_bad = utils.split_database(base_path_bad, num_folds)
+parts_good = utils.split_database(base_path_good, num_folds)
+parts_synth = utils.split_database(base_path_synth, 1)
 
 # %%
-def construct_lr_lambda(gamma, power):
-    def lr_lambda(epoch):
-        return (1 + gamma * epoch) ** (-power)
-    return lr_lambda
-
-
-for fold in range(1):
+for fold in range(num_folds):
     fp_ids_bad_val = parts_bad[fold]
     fp_ids_bad_tra = np.append(parts_bad[:fold], parts_bad[fold+1:])
     fp_ids_good_val = parts_good[fold]
@@ -90,6 +50,7 @@ for fold in range(1):
     # foe_img_ds_tra.set_hflip()
     # foe_img_ds_val.set_rotate()
     # foe_img_ds_tra.set_rotate()
+
     foe_img_dl_val = torch.utils.data.DataLoader(foe_img_ds_val,
                                                  batch_size=batch_size,
                                                  num_workers=num_workers,
@@ -100,137 +61,160 @@ for fold in range(1):
                                                  num_workers=num_workers,
                                                  shuffle=True,
                                                  pin_memory=use_gpu)
-    if n_class == 0:
-        discs = [0]
-    else:
-        discs = utils.discretize_orientation(disc_method, n_class, n_disc,
-                                             sample=None)
 
-    model = FOEConvNet(out_len=K)
-    model = model.to(device)
-    print(sum(p.numel() for p in model.parameters()))
+    discs_all = [[]]
+    disc_methods = ['']
+    for params in [['eq_len', 256, 1], ['eq_len', 128, 2], ['eq_len', 64, 4],
+                   ['eq_len', 32, 8], ['eq_len', 16, 16], ['eq_prob', 128, 2],
+                   ['eq_prob', 64, 4], ['eq_prob', 32, 8], ['eq_prob', 16, 16],
+                   ['k_means', 32, 8], ['k_means', 16, 16]]:
+        discs_all.append(utils.discretize_orientation(params[0], params[1],
+                                                      params[2],
+                                                      foe_img_ds_tra))
+        disc_methods.append(params[0])
 
-    optimizer = torch.optim.SGD(model.parameters(),
-                                lr=learning_rate,
-                                momentum=momentum,
-                                weight_decay=weight_decay)
-    lr_lambda = construct_lr_lambda(gamma, power)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
-                                                  lr_lambda=lr_lambda)
-    for e in range(num_epochs):
-        model.train()
-        total_loss = 0.0
-        rmse_good = []
-        rmse_bad = []
-        macc_good = []
-        macc_bad = []
-        for x, orientations, mask, fp_type, index in foe_img_dl_tra:
-            x = x.to(device)
-            if n_class == 0:
-                yt = utils.angle_to_sincos(orientations)
+    for discs, disc_method in zip(discs_all, disc_methods):
+        for encod_met in ['one_hot', 'ordinal', 'circular']:
+            if not discs:
+                K = 2
+                loss_fnc = F.mse_loss
+                n_disc = 1
+                code_len = 2
             else:
-                yt = utils.encode_angle(orientations, encoding_method, discs)
-            yt = yt.to(device)
+                n_disc = len(discs)
+                n_class = len(discs[0]) - 1
+                if encod_met == 'one_hot':
+                    loss_fnc = F.cross_entropy
+                    def prob_fnc(probs): return F.softmax(probs, dim=1)
+                    code_len = n_class
+                else:
+                    loss_fnc = F.binary_cross_entropy_with_logits
+                    prob_fnc = F.sigmoid
+                    if encod_met == 'ordinal':
+                        code_len = n_class-1
+                    elif encod_met == 'circular':
+                        code_len = n_class // 2
+                K = n_disc * code_len
 
-            mask = mask.to(device)
-            optimizer.zero_grad()
-            yo = model(x)
-            loss = 0
-            for i in range(n_disc):
-                loss += loss_fnc(yo[:, i*n_class:(i+1)*n_class],
-                                 yt[:, i*n_class:(i+1)*n_class],
-                                 reduction='none')
-            loss = loss * mask
-            loss = torch.sum(loss) / torch.sum(mask)
-            loss.backward()
-            optimizer.step()
-            total_loss += loss.item()
-            scheduler.step()
+            print('-' * 20)
+            if discs:
+                print('disc method', disc_method)
+                print('n_class:', n_class)
+                print('n_disc:', n_disc)
+                print('encod method', encod_met)
 
-            if e % 10 == 0:
-                mask_np = mask.cpu().detach().numpy()
-                dim = list(orientations.size())
-                dim.insert(1, n_disc)
-                ests = np.zeros(dim)
-                for i in range(n_disc):
-                    probs = prob_fnc(yo[:, i*n_class:(i+1)*n_class])
-                    est = utils.decode_angle(probs, encoding_method, discs[i],
-                                             regression='max')
-                    ests[:, i] = est*mask_np
-                # circular mean
-                ests = np.arctan2(np.mean(np.sin(ests*2), axis=1),
-                                  np.mean(np.cos(ests*2), axis=1))
-                ests = np.where(ests < 0, ests+2*np.pi, ests) / 2
+            model = FOEConvNet(out_len=K)
+            model = model.to(device)
+            print(sum(p.numel() for p in model.parameters()))
+            optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
+                                        momentum=momentum,
+                                        weight_decay=weight_decay)
+            lr_lambda = utils.construct_lr_lambda(gamma, power)
+            scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+            for e in range(num_epochs):
+                model.train()
+                total_loss = 0.0
+                for x, oris, mask, fp_type, ind in foe_img_dl_tra:
+                    x = x.to(device)
+                    if not discs:
+                        yt = utils.angle_to_sincos(oris)
+                    else:
+                        yt = utils.encode_angle(oris, encod_met, discs)
+                    yt = yt.to(device)
 
-                new_rmse = utils.calc_rmse(orientations, ests, mask_np)
-                new_macc = utils.calc_class_acc(yo, yt, mask_np, n_class,
-                                                n_disc)
-                for er, ac, t in zip(new_rmse, new_macc, fp_type):
-                    if t == 'Good':
-                        rmse_good = np.append(rmse_good, [er])
-                        macc_good = np.append(macc_good, [ac])
-                    elif t == 'Bad':
-                        rmse_bad = np.append(rmse_bad, [er])
-                        macc_bad = np.append(macc_bad, [ac])
+                    mask = mask.to(device)
+                    optimizer.zero_grad()
+                    yo = model(x)
+                    loss = 0
+                    for i in range(n_disc):
+                        loss += loss_fnc(yo[:, i*code_len:(i+1)*code_len],
+                                         yt[:, i*code_len:(i+1)*code_len],
+                                         reduction='none')
+                    if len(loss.shape) == 4:
+                        loss = torch.mean(loss, dim=1)
+                    loss = loss * mask
+                    loss = torch.sum(loss) / torch.sum(mask)
+                    loss.backward()
+                    optimizer.step()
+                    total_loss += loss.item()
+                    scheduler.step()
 
-        print(e, total_loss / len(foe_img_dl_tra), scheduler.get_last_lr())
-        if e % 10 == 0:
-            print('>'*10, np.mean(rmse_good), np.mean(rmse_bad))
-            print('>'*10, np.mean(macc_good), np.mean(macc_bad))
+                if e % 20 == 0:
+                    print(e, total_loss / len(foe_img_dl_tra),
+                          scheduler.get_last_lr(), end=' ')
+                else:
+                    print(e, total_loss / len(foe_img_dl_tra),
+                          scheduler.get_last_lr())
 
-        # if e % 20 == 0:
-        #     if e % 100 == 0:
-        #         path = '../results/model_'+str(e).zfill(3)+'.pt'
-        #         torch.save({'mstate': model.state_dict()}, path)
-        #         print('Saved model to {}'.format(path))
-        #     with torch.no_grad():
-        #         model.eval()
-        #         total_loss = 0.0
-        #         rmse_bad_tra = []
-        #         rmse_good_tra = []
-        #         for (xi, orientations, mask, fp_type,
-        #              index) in foe_img_dl_tra:
-        #             x = xi.to(device)
-        #             y = yi.to(device)
-        #             y_out = model(x)
-        #             for fpt in fp_type:
-        #                 if fpt == 'Bad':
-        #                     rmse_bad_tra.append(utils.calc_rmse2(y, y_out,
-        #                                                          mask,
-        #                                                          n_class))
-        #                 elif fpt == 'Good':
-        #                     rmse_good_tra.append(utils.calc_rmse2(y, y_out,
-        #                                                           mask,
-        #                                                           n_class))
-        #         print(np.mean(rmse_bad_tra), np.mean(rmse_good_tra))
-
-        #         total_loss = 0.0
-        #         rmse_bad_val = []
-        #         rmse_good_val = []
-        #         for (xi, orientations, mask, fp_type,
-        #              index) in foe_img_dl_val:
-        #             x = xi.to(device)
-        #             y = torch.from_numpy(yi).to(device)
-        #             y_out = model(x)
-        #             yd = y.cpu().detach().numpy()
-        #             y_outd = y_out.cpu().detach().numpy()
-        #             maskd = mask.cpu().detach().numpy()
-        #             degrees = np.arctan2(yd[:, 0], yd[:, 1]) / np.pi * 180
-        #             degrees_out = np.arctan2(y_outd[:, 0],
-        #                                     y_outd[:, 1]) / np.pi * 180
-        #             degrees_se = np.sum(np.power(degrees - degrees_out, 2) *
-        #                                 maskd)
-        #             degrees_mse = degrees_se / np.sum(maskd)
-        #             for fpt in fp_type:
-        #                 if fpt == 'Bad':
-        #                     # rmse_bad_val.append(calc_rmse(y, y_out, mask))
-        #                     rmse_bad_val.append(utils.calc_rmse2(y, y_out,
-        #                                                          mask,
-        #                                                          n_classes))
-        #                 elif fpt == 'Good':
-        #                     # rmse_good_val.append(calc_rmse(y, y_out, mask))
-        #                     rmse_good_val.append(utils.calc_rmse2(y, y_out,
-        #                                                              mask,
-        #                                                              n_classes))
-        #         print(np.mean(rmse_bad_val), np.mean(rmse_good_val))
-# %%
+                if e % 20 == 0:
+                    # if e % 100 == 0:
+                    #     path = '../results/model_'+str(e).zfill(3)+'.pt'
+                    #     torch.save({'mstate': model.state_dict()}, path)
+                    #     print('Saved model to {}'.format(path))
+                    with torch.no_grad():
+                        model.eval()
+                        dls = [foe_img_dl_tra, foe_img_dl_val]
+                        total_loss = 0.0
+                        rmse_g = [[], []]
+                        rmse_g2 = [[], []]
+                        rmse_b = [[], []]
+                        rmse_b2 = [[], []]
+                        macc_g = [[], []]
+                        macc_b = [[], []]
+                        for d in range(len(dls)):
+                            for x, oris, mask, fp_type, ind in dls[d]:
+                                x = x.to(device)
+                                yo = model(x)
+                                mask_np = mask.cpu().detach().numpy()
+                                ests2 = None
+                                if not discs:
+                                    new_macc = [0] * batch_size
+                                    ests = utils.sincos_to_angle(yo)
+                                else:
+                                    yt = utils.encode_angle(oris,
+                                                            encod_met,
+                                                            discs)
+                                    yt = yt.to(device)
+                                    new_macc = utils.calc_class_acc(yo, yt,
+                                                                    mask_np,
+                                                                    code_len,
+                                                                    n_disc,
+                                                                    encod_met)
+                                    ests = utils.decode_angle(yo, encod_met,
+                                                              discs, prob_fnc,
+                                                              regr='max')
+                                    if encod_met == "one_hot":
+                                        ests2 = utils.decode_angle(yo,
+                                                                   encod_met,
+                                                                   discs,
+                                                                   prob_fnc,
+                                                                   regr='exp')
+                                new_rmse = utils.calc_rmse(oris, ests, mask_np)
+                                for er, ac, t in zip(new_rmse, new_macc,
+                                                     fp_type):
+                                    if t == 'Good':
+                                        rmse_g[d] = np.append(rmse_g[d], [er])
+                                        macc_g[d] = np.append(macc_g[d], [ac])
+                                    elif t == 'Bad':
+                                        rmse_b[d] = np.append(rmse_b[d], [er])
+                                        macc_b[d] = np.append(macc_b[d], [ac])
+                                if ests2 is not None:
+                                    new_rmse2 = utils.calc_rmse(oris, ests2,
+                                                                mask_np)
+                                    for er, t in zip(new_rmse2, fp_type):
+                                        if t == 'Good':
+                                            rmse_g2[d] = np.append(rmse_g[d],
+                                                                   [er])
+                                        elif t == 'Bad':
+                                            rmse_b2[d] = np.append(rmse_g[d],
+                                                                   [er])
+                            print(np.mean(rmse_g[d]), np.mean(rmse_b[d]),
+                                  end=' ')
+                            print(np.mean(macc_g[d]), np.mean(macc_b[d]),
+                                  end=' ')
+                            if len(rmse_g2[0]) > 0:
+                                print(np.mean(rmse_g2[d]), np.mean(rmse_b2[d]),
+                                      end=' ')
+                    print()
+            if not discs:
+                break

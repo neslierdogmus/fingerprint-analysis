@@ -1,14 +1,39 @@
-import torch
+import os
+import random
 import numpy as np
+from matplotlib import pyplot as plt
 from scipy.cluster.vq import kmeans2
 from scipy.cluster.vq import ClusterError
-from matplotlib import pyplot as plt
+import torch
+
+
+def split_database(base_path, num_folds):
+    index_path = os.path.join(base_path, 'index.txt')
+    with open(index_path, 'r') as fin:
+        fp_ids = [line.split('.')[0] for line in fin.readlines()[1:]]
+    random.shuffle(fp_ids)
+    parts = np.array_split(fp_ids, num_folds)
+    return parts
 
 
 def angle_to_sincos(oris):
-    sincos = np.append(np.sin(2*oris), np.cos(2*oris), axis=1)
+    sincos = np.stack([np.sin(2*oris), np.cos(2*oris)], axis=1)
 
     return torch.from_numpy(sincos.astype(np.single))
+
+
+def sincos_to_angle(outputs):
+    out_np = outputs.cpu().detach().numpy()
+    oris = np.arctan2(out_np[:, 0], out_np[:, 1]) / 2
+    oris = np.where(oris < 0, oris+np.pi, oris)
+
+    return oris
+
+
+def construct_lr_lambda(gamma, power):
+    def lr_lambda(epoch):
+        return (1 + gamma * epoch) ** (-power)
+    return lr_lambda
 
 
 def discretize_orientation(method, num_class=32, num_disc=8, sample=None):
@@ -35,7 +60,7 @@ def discretize_orientation(method, num_class=32, num_disc=8, sample=None):
                                           all orientations to the size of the\
                                           largest orientation set."
                 oris.sort()
-                shift = sum(oris >= np.unique(oris)[i*int(360/num_class)])
+                shift = sum(oris >= np.unique(oris)[i*int(180/num_class)])
                 oris = np.roll(oris, shift)
                 samples_per_bin = int(len(oris)/num_class)
                 edge_samples = np.arange(num_class) * samples_per_bin
@@ -113,7 +138,7 @@ def view_discretization(discs, sample=None):
 
 
 def encode_angle(oris, method, discs):
-    valid_methods = ["one_hot", "ordinal", "cyclic"]
+    valid_methods = ["one_hot", "ordinal", "circular"]
     assert method in valid_methods, "not a valid encoding method"
 
     codes_dim = list(oris.size())
@@ -121,16 +146,14 @@ def encode_angle(oris, method, discs):
     all_codes = torch.empty(codes_dim)
     for disc in discs:
         L = len(disc) - 1
-        if method == 'cyclic':
+        if method == 'circular':
             code_len = L//2
-            codes_dim.insert(1, code_len)
+            codes_dim[1] = code_len
             codes = np.zeros(codes_dim)
-            for i in range(codes_dim[0]):
-                for j in range(codes_dim[1]):
-                    for k in range(codes_dim[2]):
-                        for m in range(codes_dim[3]):
-                            c = disc[j] < oris[i, k, m] <= disc[j+code_len]
-                            codes[i, j, k, m] = int(c)
+            for j in range(code_len):
+                low, up = disc[j], disc[j+code_len]
+                codes[:, j] = torch.logical_and(torch.gt(oris, low),
+                                                torch.le(oris, up)).long()
         else:
             bin_num = np.digitize(oris, disc) - int(disc[0] == 0)
             bin_num[bin_num == L] = 0
@@ -147,10 +170,12 @@ def encode_angle(oris, method, discs):
 
 
 def view_codes(discs):
-    methods = ["one_hot", "ordinal", "cyclic"]
+    methods = ["one_hot", "ordinal", "circular"]
     M = len(discs)
     N = len(methods)
     L = len(discs[0]) - 1
+    code_len = [L, L-1, L//2]
+
     oris = np.expand_dims(np.arange(256) * np.pi / 256, (0, 1))
     oris = torch.from_numpy(oris)
     dpi = 100
@@ -158,62 +183,76 @@ def view_codes(discs):
     pixel_per_ori = 2
     fig_size = (L * pixel_per_bar * N / dpi, 256 * pixel_per_ori * M / dpi)
     fig, axes = plt.subplots(M, N, figsize=fig_size, dpi=dpi)
-    for i in range(M):
-        for j in range(N):
-            codes = encode_angle(oris, methods[j], discs[i])
+    for j in range(N):
+        codes = encode_angle(oris, methods[j], discs)
+        c = code_len[j]
+        for i in range(M):
             ax = axes[i][j]
-            ax.imshow(1-codes[0, 0], cmap='binary', aspect='auto',
-                      interpolation='nearest')
+            ax.imshow((1-codes[0, i*c:(i+1)*c, 0]).T, cmap='binary',
+                      aspect='auto', interpolation='nearest')
 
 
-def decode_angle(outputs, method, disc, regression='max'):
-    valid_methods = ["one_hot", "ordinal", "cyclic"]
+def decode_angle(outputs, method, discs, prob_fnc, regr='max'):
+    valid_methods = ["one_hot", "ordinal", "circular"]
     assert method in valid_methods, "not a valid encoding method"
 
-    out_np = outputs.cpu().detach().numpy()
+    dim = list(outputs.size())
+    n_disc = len(discs)
+    code_len = dim[1] // n_disc
+    dim[1] = n_disc
+    ests = np.zeros(dim)
 
-    bin_cen = np.array([(disc[j+1]+disc[j])/2 for j in range(len(disc) - 1)])
-    bin_cen[bin_cen > np.pi] -= np.pi
-    bin_cen.sort()
-    if method == 'one_hot':
-        val_regress = ['max', 'exp']
-        assert regression in val_regress, "not a valid regression method"
-        if regression == 'max':
-            labels = np.argmax(out_np, axis=1)
+    for d in range(n_disc):
+        disc = discs[d]
+        probs = prob_fnc(outputs[:, d*code_len:(d+1)*code_len])
+        out_np = probs.cpu().detach().numpy()
+
+        bin_cen = np.array([(disc[j+1]+disc[j])/2 for j in range(len(disc)-1)])
+        bin_cen[bin_cen > np.pi] -= np.pi
+        bin_cen.sort()
+        if method == 'one_hot':
+            val_regress = ['max', 'exp']
+            assert regr in val_regress, "not a valid one-hot regression method"
+            if regr == 'max':
+                labels = np.argmax(out_np, axis=1)
+                oris = bin_cen[labels]
+            else:
+                # circular expected value
+                bin_cen_exp = bin_cen[None, :, None, None]
+                exp_sin = np.sum(out_np * np.sin(bin_cen_exp * 2), axis=1)
+                exp_cos = np.sum(out_np * np.cos(bin_cen_exp * 2), axis=1)
+                oris = np.arctan2(exp_sin, exp_cos)
+                oris = np.where(oris < 0, oris+2*np.pi, oris) / 2
+        elif method == 'ordinal':
+            labels = np.sum(out_np > 0.5, axis=1)
             oris = bin_cen[labels]
         else:
-            # circular expected value
-            exp_sin = np.sum(out_np * np.sin(bin_cen[None, :, None, None] * 2),
-                             axis=1)
-            exp_cos = np.sum(out_np * np.cos(bin_cen[None, :, None, None] * 2),
-                             axis=1)
-            oris = np.arctan2(exp_sin, exp_cos) / 2
-    elif method == 'ordinal':
-        pass
-    else:
-        pass
+            L = len(disc)-1
+            weights = np.ones((L//2, L)) * -1
+            for i in range(L):
+                if i <= L//2:
+                    weights[0:i, i] = 1
+                else:
+                    weights[i-L//2:, i] = 1
+            weighted_sums = np.dot(np.moveaxis(out_np, 1, 3), weights)
+            plus_ones = np.append(np.arange(L//2, 0, -1), np.arange(L//2))
+            weighted_sums += plus_ones
+            labels = weighted_sums.argmax(axis=-1)
+            oris = bin_cen[labels]
+        ests[:, d] = oris
 
-    return oris
+    # circular mean along discs
+    ests = np.arctan2(np.mean(np.sin(ests*2), axis=1),
+                      np.mean(np.cos(ests*2), axis=1))
+    ests = np.where(ests < 0, ests+2*np.pi, ests) / 2
 
-
-def calc_class_acc(yo, yt, mask_np, n_class, n_disc):
-    num_total = np.sum(mask_np, axis=(1, 2))
-    yo_np = yo.cpu().detach().numpy()
-    yt_np = yt.cpu().detach().numpy()
-    acc = []
-    for i in range(n_disc):
-        yoi = yo_np[:, i*n_class:(i+1)*n_class]
-        yti = yt_np[:, i*n_class:(i+1)*n_class]
-        num_corr = np.sum((yoi.argmax(axis=1) == yti.argmax(axis=1)) * mask_np,
-                          axis=(1, 2))
-        acc.append(num_corr / num_total)
-
-    return np.mean(acc, axis=0)
+    return ests
 
 
 def calc_rmse(oris, ests, mask_np):
     oris_np = oris.numpy()
     oris_np_degrees = oris_np / np.pi * 180
+    ests = ests * mask_np
     ests_degrees = ests / np.pi * 180
     diff_degrees = np.abs(oris_np_degrees - ests_degrees)
     diff_degrees = np.where(diff_degrees > 90, 180-diff_degrees, diff_degrees)
@@ -223,22 +262,23 @@ def calc_rmse(oris, ests, mask_np):
     return rmse_degrees
 
 
-def calc_rmse2(output_exp, output_pre, mask, n_classes):
-    output_exp = output_exp.cpu().detach().numpy()
-    radians_exp = np.argmax(output_exp, axis=1)/n_classes*np.pi
-    degrees_exp = radians_exp / np.pi * 180
+def calc_class_acc(yo, yt, mask_np, code_len, n_disc, method):
+    valid_methods = ["one_hot", "ordinal", "circular"]
+    assert method in valid_methods, "not a valid encoding method"
 
-    output_pre = output_pre.cpu().detach().numpy()
-    # radians_pre = np.arctan2(output_pre[:, 0], output_pre[:, 1]) / 2
-    # radians_pre = np.where(radians_pre < 0, radians_pre + np.pi, radians_pre)
-    radians_pre = np.argmax(output_pre, axis=1)/n_classes*np.pi
-    degrees_pre = radians_pre / np.pi * 180
+    yo_np = yo.cpu().detach().numpy()
+    yt_np = yt.cpu().detach().numpy()
+    acc = []
+    for i in range(n_disc):
+        yoi = yo_np[:, i*code_len:(i+1)*code_len]
+        yti = yt_np[:, i*code_len:(i+1)*code_len]
+        if method == "one_hot":
+            check = yoi.argmax(axis=1) == yti.argmax(axis=1)
+            num_total = np.sum(mask_np, axis=(1, 2))
+        else:
+            check = np.sum(np.equal(yoi > 0.5, yti > 0.5), axis=1)
+            num_total = np.sum(mask_np, axis=(1, 2)) * code_len
+        num_corr = np.sum(check * mask_np, axis=(1, 2))
+        acc.append(num_corr / num_total)
 
-    degrees_diff = np.abs(degrees_exp - degrees_pre)
-    degrees_diff = np.where(degrees_diff > 90, 180-degrees_diff, degrees_diff)
-
-    mask = mask.cpu().detach().numpy()
-    degrees_se = np.sum(np.power(degrees_diff, 2) * mask)
-    degrees_rmse = np.sqrt(degrees_se / np.sum(mask))
-
-    return degrees_rmse
+    return np.mean(acc, axis=0)
