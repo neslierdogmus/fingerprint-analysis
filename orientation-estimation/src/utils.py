@@ -6,6 +6,7 @@ from scipy.cluster.vq import kmeans2
 from scipy.cluster.vq import ClusterError
 import torch
 
+plt.ioff()
 
 def split_database(base_path, num_folds):
     index_path = os.path.join(base_path, 'index.txt')
@@ -88,10 +89,10 @@ def discretize_orientation(method, num_class=32, num_disc=8, sample=None):
     return discs
 
 
-def view_discretization(discs, sample=None):
-    _, ax = plt.subplots(1, 1)
-    width = 0.06
+def view_discs(discs, img_name, sample=None):
+    fig, ax = plt.subplots(1, 1)
     M = len(discs)
+    width = 0.5 / M
     for i in range(M):
         disc = discs[i]
         sizes = [(disc[i+1]-disc[i])/np.pi*100 for i in range(len(disc)-1)]
@@ -104,9 +105,15 @@ def view_discretization(discs, sample=None):
     ax.text(-1.5, -0.025, r'90$^\circ$/ $\pi/2$')
     ax.text(-0.25, -1.15, r'135$^\circ$/ $3\pi/4$')
 
+    fig.savefig(img_name+'_dist.png')
+
     if sample is not None:
-        fig, axes = plt.subplots(M//2, 2, subplot_kw={'projection': 'polar'})
-        fig.set_figheight(20)
+        if M > 1:
+            fig, axes = plt.subplots(M//2, 2,
+                                     subplot_kw={'projection': 'polar'})
+        else:
+            fig, axes = plt.subplots(1, 1, subplot_kw={'projection': 'polar'})
+        fig.set_figheight(30)
         fig.set_figwidth(10)
         oris = [ori for fp in sample.fps
                 for (oris, mask) in zip(fp.gt.orientations, fp.gt.mask)
@@ -127,14 +134,23 @@ def view_discretization(discs, sample=None):
                 xticks[-1] -= np.pi
             w[-1] += disc[0]
 
-            ax2 = axes[i//2, i % 2]
+            if M > 2:
+                ax2 = axes[i//2, i % 2]
+            elif M > 1:
+                ax2 = axes[i % 2]
+            else:
+                ax2 = axes
+            mc = max(count)
+            step = int(np.ceil(mc / 300) * 100)
             _ = ax2.bar(2*np.array(xticks), count, width=2*np.array(w),
-                        bottom=1000)
+                        bottom=step)
             ax2.set_xticks([0, np.pi/2, np.pi, 3*np.pi/2])
             ax2.set_xticklabels([r'0 / $\pi$', r'$\pi/4$',
                                  r'$\pi/2$', r'$3\pi/4$'])
-            ax2.set_yticks([2000, 3000, 4000])
-            ax2.set_yticklabels([1000, 2000, 3000])
+            ax2.set_yticks([step*2, step*3, step*4])
+            ax2.set_yticklabels([step, step*2, step*3])
+        fig.savefig(img_name+'_hist.png')
+    plt.close('all')
 
 
 def encode_angle(oris, method, discs):
@@ -169,7 +185,7 @@ def encode_angle(oris, method, discs):
     return all_codes
 
 
-def view_codes(discs):
+def view_codes(discs, img_name):
     methods = ["one_hot", "ordinal", "circular"]
     M = len(discs)
     N = len(methods)
@@ -187,9 +203,14 @@ def view_codes(discs):
         codes = encode_angle(oris, methods[j], discs)
         c = code_len[j]
         for i in range(M):
-            ax = axes[i][j]
+            if M > 1:
+                ax = axes[i][j]
+            else:
+                ax = axes[j]
             ax.imshow((1-codes[0, i*c:(i+1)*c, 0]).T, cmap='binary',
                       aspect='auto', interpolation='nearest')
+    fig.savefig(img_name+'_codes.png')
+    plt.close('all')
 
 
 def decode_angle(outputs, method, discs, prob_fnc, regr='max'):
