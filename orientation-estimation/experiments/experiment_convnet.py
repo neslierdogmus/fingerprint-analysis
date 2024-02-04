@@ -7,10 +7,13 @@ from foe_fp_image_dataset import FOEFPImageDataset
 from foe_model_convnet import FOEConvNet
 import utils
 
+from matplotlib import pyplot as plt
+from matplotlib.pyplot import cm
+
 num_folds = 5
 use_cpu = False
 
-num_epochs = 101
+num_epochs = 201
 eval_step = 10
 batch_size = 1
 num_workers = 4
@@ -35,6 +38,7 @@ parts_good = utils.split_database(base_path_good, num_folds)
 parts_synth = utils.split_database(base_path_synth, 1)
 
 # %%
+all_loss = []
 all_results = []
 for fold in range(num_folds):
     fp_ids_bad_val = parts_bad[fold]
@@ -65,7 +69,7 @@ for fold in range(num_folds):
                                                  pin_memory=use_gpu)
 
     discs_all = [[]]
-    disc_names = ['sin_cos']
+    disc_names = ['f'+str(fold)+'_'+'sin_cos']
     for params in [['eq_len', 256, 1], ['eq_len', 128, 2], ['eq_len', 64, 4],
                    ['eq_len', 32, 8], ['eq_len', 16, 16], ['eq_prob', 128, 2],
                    ['eq_prob', 64, 4], ['eq_prob', 32, 8], ['eq_prob', 16, 16],
@@ -73,11 +77,12 @@ for fold in range(num_folds):
         discs = utils.discretize_orientation(params[0], params[1], params[2],
                                              foe_img_ds_tra)
         discs_all.append(discs)
-        img_name = "f"+str(fold)+"_"+"_".join([str(p) for p in params])
+        img_name = 'f'+str(fold)+'_'+'_'.join([str(p) for p in params])
         disc_names.append(img_name)
         utils.view_discs(discs, img_name, foe_img_ds_tra)
         utils.view_codes(discs, img_name)
 
+    fold_loss = []
     fold_results = []
     for discs, disc_name in zip(discs_all, disc_names):
         for encod_met in ['one_hot', 'ordinal', 'circular']:
@@ -102,7 +107,7 @@ for fold in range(num_folds):
                     elif encod_met == 'circular':
                         code_len = n_class // 2
                 K = n_disc * code_len
-                exp_name = disc_name + "_" + encod_met
+                exp_name = disc_name + '_' + encod_met
 
             print('>>>>> Experiment:', exp_name)
 
@@ -186,7 +191,7 @@ for fold in range(num_folds):
                                     ests = utils.decode_angle(yo, encod_met,
                                                               discs, prob_fnc,
                                                               regr='max')
-                                    if encod_met == "one_hot":
+                                    if encod_met == 'one_hot':
                                         ests2 = utils.decode_angle(yo,
                                                                    encod_met,
                                                                    discs,
@@ -205,7 +210,7 @@ for fold in range(num_folds):
                                         macc_g[d] = np.append(macc_g[d], [ac])
                                     elif t == 'Bad':
                                         rmse_b[d] = np.append(rmse_b[d], [er])
-                                        rmse2_b[d] = np.append(rmse2_g[d],
+                                        rmse2_b[d] = np.append(rmse2_b[d],
                                                                [er2])
                                         macc_b[d] = np.append(macc_b[d], [ac])
                     res_ls = [rmse_g, rmse_b, rmse2_g, rmse2_b, macc_g, macc_b]
@@ -213,8 +218,79 @@ for fold in range(num_folds):
                                        for res in res_ls])
                     print(result_list[-1], end=' ')
                     print()
+            fold_loss.append(loss_list)
             fold_results.append(result_list)
             if not discs:
                 break
+    all_loss.append(fold_loss)
     all_results.append(fold_results)
-#plot all results
+# %%
+# plot all results
+al = np.array(all_loss)
+ar = np.array(all_results)
+
+al_mean = np.mean(al, axis=0)
+ar_mean = np.mean(ar, axis=0)
+al_std = np.std(al, axis=0)
+ar_std = np.std(ar, axis=0)
+
+sin_cos = plt.figure()
+eq_len_one_hot = plt.figure()
+eq_prob_one_hot = plt.figure()
+k_means_one_hot = plt.figure()
+eq_len_ordinal = plt.figure()
+eq_prob_ordinal = plt.figure()
+k_means_ordinal = plt.figure()
+eq_len_circular = plt.figure()
+eq_prob_circular = plt.figure()
+k_means_circular = plt.figure()
+
+x_data = np.arange(0, num_epochs, eval_step)+1
+
+color = iter(cm.rainbow(np.linspace(0, 1, 11)))
+c = next(color)
+ind = -1
+
+
+def plot_rmse(num, x_data, ar_mean, ar_std, ind, c, par=''):
+    lines = ['--', '-', '-.', ':']
+
+    plt.plot(x_data, ar_mean[ind, :, 2*num], lines[2*num], c=c, label='g '+par)
+    plt.fill_between(x_data, ar_mean[ind, :, 2*num]-ar_std[ind, :, 2*num],
+                     ar_mean[ind, :, 2*num]+ar_std[ind, :, 2*num], color=c,
+                     alpha=.15)
+    plt.plot(x_data, ar_mean[ind, :, 2*num+1], lines[2*num+1], c=c,
+             label='b '+par)
+    plt.fill_between(x_data, ar_mean[ind, :, 2*num+1]-ar_std[ind, :, 2*num+1],
+                     ar_mean[ind, :, 2*num+1]+ar_std[ind, :, 2*num+1], color=c,
+                     alpha=.15)
+    plt.legend(bbox_to_anchor=(1.35, 1.1))
+
+
+for disc_name in disc_names:
+    for encod_met in ['one_hot', 'ordinal', 'circular']:
+        ind += 1
+        fig_name = '_'.join(disc_name.split('_')[1:3] + [encod_met])
+        plt.figure(fig_name)
+        if 'sin_cos' in disc_name:
+            plt.title('Sin-Cos')
+            plot_rmse(0, x_data, ar_mean, ar_std, ind, c)
+            break
+        else:
+            plt.title(' '.join(disc_name.split('_')[1:3] + [encod_met]))
+            par = ' '.join(disc_name.split('_')[-2:])
+            if 'one_hot' in encod_met:
+                plot_rmse(0, x_data, ar_mean, ar_std, ind, c, 'max ' + par)
+                try:
+                    c = next(color)
+                except StopIteration:
+                    color = iter(cm.rainbow(np.linspace(0, 1, 11)))
+                    c = next(color)
+                plot_rmse(1, x_data, ar_mean, ar_std, ind, c, 'exp ' + par)
+            else:
+                plot_rmse(0, x_data, ar_mean, ar_std, ind, c, par)
+            try:
+                c = next(color)
+            except StopIteration:
+                color = iter(cm.rainbow(np.linspace(0, 1, 11)))
+                c = next(color)
