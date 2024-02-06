@@ -6,7 +6,6 @@ from scipy.cluster.vq import kmeans2
 from scipy.cluster.vq import ClusterError
 import torch
 
-plt.ioff()
 
 def split_database(base_path, num_folds):
     index_path = os.path.join(base_path, 'index.txt')

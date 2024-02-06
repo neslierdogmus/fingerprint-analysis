@@ -13,13 +13,13 @@ from matplotlib.pyplot import cm
 num_folds = 5
 use_cpu = False
 
-num_epochs = 201
+num_epochs = 401
 eval_step = 10
 batch_size = 1
 num_workers = 4
 num_synth = 0
 
-learning_rate = 10**-3
+lr = 10**-3
 gamma = 10**-4
 power = 0.75
 weight_decay = 5*10**-6
@@ -36,6 +36,9 @@ base_path_synth = '../../datasets/foe/Synth'
 parts_bad = utils.split_database(base_path_bad, num_folds)
 parts_good = utils.split_database(base_path_good, num_folds)
 parts_synth = utils.split_database(base_path_synth, 1)
+
+lr_coeff = [10, 10, 30, 30, 10, 30, 30, 3, 10, 10, 3, 10, 10, 1, 3, 3,
+            10, 30, 30, 3, 10, 10, 3, 10, 10, 1, 3, 3, 1, 3, 3, 1, 3, 3]
 
 # %%
 all_loss = []
@@ -70,15 +73,16 @@ for fold in range(num_folds):
 
     discs_all = [[]]
     disc_names = ['f'+str(fold)+'_'+'sin_cos']
+    lrc = iter(lr_coeff)
     for params in [['eq_len', 256, 1], ['eq_len', 128, 2], ['eq_len', 64, 4],
                    ['eq_len', 32, 8], ['eq_len', 16, 16], ['eq_prob', 128, 2],
                    ['eq_prob', 64, 4], ['eq_prob', 32, 8], ['eq_prob', 16, 16],
                    ['k_means', 32, 8], ['k_means', 16, 16]]:
+        img_name = 'f'+str(fold)+'_'+'_'.join([str(p) for p in params])
+        disc_names.append(img_name)
         discs = utils.discretize_orientation(params[0], params[1], params[2],
                                              foe_img_ds_tra)
         discs_all.append(discs)
-        img_name = 'f'+str(fold)+'_'+'_'.join([str(p) for p in params])
-        disc_names.append(img_name)
         utils.view_discs(discs, img_name, foe_img_ds_tra)
         utils.view_codes(discs, img_name)
 
@@ -114,7 +118,7 @@ for fold in range(num_folds):
             model = FOEConvNet(out_len=K)
             model = model.to(device)
             print(sum(p.numel() for p in model.parameters()))
-            optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate,
+            optimizer = torch.optim.SGD(model.parameters(), lr=lr*next(lrc),
                                         momentum=momentum,
                                         weight_decay=weight_decay)
             lr_lambda = utils.construct_lr_lambda(gamma, power)
@@ -229,21 +233,13 @@ for fold in range(num_folds):
 al = np.array(all_loss)
 ar = np.array(all_results)
 
+np.save('al.npy', al)
+np.save('ar.npy', ar)
+
 al_mean = np.mean(al, axis=0)
 ar_mean = np.mean(ar, axis=0)
 al_std = np.std(al, axis=0)
 ar_std = np.std(ar, axis=0)
-
-sin_cos = plt.figure()
-eq_len_one_hot = plt.figure()
-eq_prob_one_hot = plt.figure()
-k_means_one_hot = plt.figure()
-eq_len_ordinal = plt.figure()
-eq_prob_ordinal = plt.figure()
-k_means_ordinal = plt.figure()
-eq_len_circular = plt.figure()
-eq_prob_circular = plt.figure()
-k_means_circular = plt.figure()
 
 x_data = np.arange(0, num_epochs, eval_step)+1
 
@@ -264,7 +260,7 @@ def plot_rmse(num, x_data, ar_mean, ar_std, ind, c, par=''):
     plt.fill_between(x_data, ar_mean[ind, :, 2*num+1]-ar_std[ind, :, 2*num+1],
                      ar_mean[ind, :, 2*num+1]+ar_std[ind, :, 2*num+1], color=c,
                      alpha=.15)
-    plt.legend(bbox_to_anchor=(1.35, 1.1))
+    plt.legend(bbox_to_anchor=(1.1, 1))
 
 
 for disc_name in disc_names:
@@ -294,3 +290,6 @@ for disc_name in disc_names:
             except StopIteration:
                 color = iter(cm.rainbow(np.linspace(0, 1, 11)))
                 c = next(color)
+plt.show()
+
+# %%
