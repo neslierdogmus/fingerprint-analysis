@@ -37,6 +37,10 @@ parts_bad = utils.split_database(base_path_bad, num_folds)
 parts_good = utils.split_database(base_path_good, num_folds)
 parts_synth = utils.split_database(base_path_synth, 1)
 
+np.save('parts_bad.npy', parts_bad)
+np.save('parts_good.npy', parts_good)
+np.save('parts_synth.npy', parts_synth)
+
 lr_coeff = [10, 10, 30, 30, 10, 30, 30, 3, 10, 10, 3, 10, 10, 1, 3, 3,
             10, 30, 30, 3, 10, 10, 3, 10, 10, 1, 3, 3, 1, 3, 3, 1, 3, 3]
 
@@ -85,6 +89,7 @@ for fold in range(num_folds):
         discs_all.append(discs)
         utils.view_discs(discs, img_name, foe_img_ds_tra)
         utils.view_codes(discs, img_name)
+        np.save(disc_name+'.npy', discs)
 
     fold_loss = []
     fold_results = []
@@ -262,6 +267,46 @@ def plot_rmse(num, x_data, ar_mean, ar_std, ind, c, par=''):
                      alpha=.15)
     plt.legend(bbox_to_anchor=(1.1, 1))
 
+
+ar_mean = np.mean(ar, axis=0)
+ar_std = np.std(ar, axis=0)
+ar_mean[22,:,:] = np.mean(ar[[0,1,2,4], 22, :, :], axis=0)
+ar_std[22,:,:] = np.std(ar[[0,1,2,4], 22, :, :], axis=0)
+ar_mean_min = np.min(ar_mean[:,:,7], axis=1)
+ar_mean_min_sincos = np.mean(ar_mean_min[0])
+ar_mean_min_el = np.mean(ar_mean_min[1:16])
+ar_mean_min_ep = np.mean(ar_mean_min[16:28])
+ar_mean_min_km = np.mean(ar_mean_min[28:])
+ar_mean_min_oh = np.mean(ar_mean_min[np.arange(1,34,3)])
+ar_mean_min_oh_exp = np.mean(np.min(ar_mean[[1,4,7,10,13,16,19,25,28,31],:,9], axis=1))
+ar_mean_min_or = np.mean(ar_mean_min[np.arange(2,34,3)])
+ar_mean_min_cr = np.mean(ar_mean_min[np.arange(3,34,3)])
+ar_mean_100 = ar_mean[:, 11, 7]
+
+fig, ax = plt.subplots(1, 1)
+plt.ylabel('Mean RMSE')
+plt.xlabel('Discretization Methods')
+_ = ax.bar(np.arange(1,7,2), [ar_mean_min_el, ar_mean_min_ep, ar_mean_min_km])
+ax.set_xticks(np.arange(1,7,2))
+ax.set_xticklabels(['eq-len', 'eq-prob', 'k-means'])
+plt.ylim(10,12)
+
+fig, ax = plt.subplots(1, 1)
+plt.ylabel('RMSE')
+plt.xlabel('Encoding Methods')
+_ = ax.bar(np.arange(1,9,2), [ar_mean_min_oh, ar_mean_min_oh_exp, ar_mean_min_or, ar_mean_min_cr])
+ax.set_xticks(np.arange(1,9,2))
+ax.set_xticklabels(['one-hot-max', 'one-hot-exp', 'ordinal', 'circular'])
+plt.ylim(10,12)
+
+fig, ax = plt.subplots(1, 1, figsize=(10,5))
+plt.ylabel('RMSE')
+plt.xlabel('Experiments')
+_ = ax.bar(np.arange(1,34), np.sort(ar_mean_100[1:]))
+ax.set_xticks(np.arange(1,34))
+ax.set_xticklabels(np.argsort(ar_mean_100[1:])+1)
+plt.ylim(9.5,13)
+plt.xlim(0,35)
 
 for disc_name in disc_names:
     for encod_met in ['one_hot', 'ordinal', 'circular']:
