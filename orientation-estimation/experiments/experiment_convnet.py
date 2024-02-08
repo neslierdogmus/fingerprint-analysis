@@ -4,7 +4,8 @@ import torch
 import torch.nn.functional as F
 
 from foe_fp_image_dataset import FOEFPImageDataset
-from foe_model_convnet import FOEConvNet
+# from foe_model_convnet import FOEConvNet
+from foe_model_vit import VisionTransformerForSegmentation as ViT
 import utils
 
 from matplotlib import pyplot as plt
@@ -13,7 +14,7 @@ from matplotlib.pyplot import cm
 num_folds = 5
 use_cpu = False
 
-num_epochs = 401
+num_epochs = 201
 eval_step = 10
 batch_size = 1
 num_workers = 4
@@ -115,7 +116,8 @@ for fold in range(num_folds):
 
             print('>>>>> Experiment:', exp_name)
 
-            model = FOEConvNet(out_len=K)
+            # model = FOEConvNet(out_len=K)
+            model = ViT((556, 444), 16, 1, K, 256, 12, 8, 0.2)
             model = model.to(device)
             print(sum(p.numel() for p in model.parameters()))
             optimizer = torch.optim.SGD(model.parameters(), lr=lr*next(lrc),
