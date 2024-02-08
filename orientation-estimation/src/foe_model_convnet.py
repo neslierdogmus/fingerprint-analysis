@@ -41,7 +41,7 @@ class FOEConvNet(nn.Module):
 
         self.apply(self.init_weights)
 
-    def forward(self, x):       
+    def forward(self, x):
         return self.network(x)
 
     def init_weights(self, m):
