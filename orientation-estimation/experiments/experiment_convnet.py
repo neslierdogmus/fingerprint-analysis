@@ -4,8 +4,8 @@ import torch
 import torch.nn.functional as F
 
 from foe_fp_image_dataset import FOEFPImageDataset
-# from foe_model_convnet import FOEConvNet
-from foe_model_vit import VisionTransformerForSegmentation as ViT
+from foe_model_convnet import FOEConvNet
+# from foe_model_vit import VisionTransformerForSegmentation as ViT
 import utils
 
 from matplotlib import pyplot as plt
@@ -121,8 +121,8 @@ for fold in range(num_folds):
 
             print('>>>>> Experiment:', exp_name)
 
-            # model = FOEConvNet(out_len=K)
-            model = ViT((556, 444), 16, 1, K, 256, 12, 8, 0.2)
+            model = FOEConvNet(out_len=K)
+            # model = ViT((556, 444), 16, 1, K, 256, 12, 8, 0.2)
             model = model.to(device)
             print(sum(p.numel() for p in model.parameters()))
             optimizer = torch.optim.SGD(model.parameters(), lr=lr*next(lrc),
@@ -231,6 +231,11 @@ for fold in range(num_folds):
                     print()
             fold_loss.append(loss_list)
             fold_results.append(result_list)
+            ind_str = str(ind[-1].item())
+            rmse_str = str(new_rmse[-1])
+            print('Fingerprint {} with  RMSE {}'.format(ind_str, rmse_str))
+            img_name = exp_name + '_' + ind_str + '_' + rmse_str + '.png'
+            utils.view_ests(x[-1], oris[-1], ests[-1], mask[-1], img_name)
             if not discs:
                 break
     all_loss.append(fold_loss)
@@ -272,43 +277,47 @@ def plot_rmse(num, x_data, ar_mean, ar_std, ind, c, par=''):
 
 ar_mean = np.mean(ar, axis=0)
 ar_std = np.std(ar, axis=0)
-ar_mean[22,:,:] = np.mean(ar[[0,1,2,4], 22, :, :], axis=0)
-ar_std[22,:,:] = np.std(ar[[0,1,2,4], 22, :, :], axis=0)
-ar_mean_min = np.min(ar_mean[:,:,7], axis=1)
+# NaN values for one fold of one experiment. Remove for the future runs!
+ar_mean[22, :, :] = np.mean(ar[[0, 1, 2, 4], 22, :, :], axis=0)
+ar_std[22, :, :] = np.std(ar[[0, 1, 2, 4], 22, :, :], axis=0)
+ar_mean_min = np.min(ar_mean[:, :, 7], axis=1)
 ar_mean_min_sincos = np.mean(ar_mean_min[0])
 ar_mean_min_el = np.mean(ar_mean_min[1:16])
 ar_mean_min_ep = np.mean(ar_mean_min[16:28])
 ar_mean_min_km = np.mean(ar_mean_min[28:])
-ar_mean_min_oh = np.mean(ar_mean_min[np.arange(1,34,3)])
-ar_mean_min_oh_exp = np.mean(np.min(ar_mean[[1,4,7,10,13,16,19,25,28,31],:,9], axis=1))
-ar_mean_min_or = np.mean(ar_mean_min[np.arange(2,34,3)])
-ar_mean_min_cr = np.mean(ar_mean_min[np.arange(3,34,3)])
+ar_mean_min_oh = np.mean(ar_mean_min[np.arange(1, 34, 3)])
+ar_mean_min_oh_exp = np.mean(np.min(ar_mean[[1, 4, 7, 10, 13, 16, 19, 25, 28,
+                                             31], :, 9], axis=1))
+ar_mean_min_or = np.mean(ar_mean_min[np.arange(2, 34, 3)])
+ar_mean_min_cr = np.mean(ar_mean_min[np.arange(3, 34, 3)])
 ar_mean_100 = ar_mean[:, 11, 7]
 
 fig, ax = plt.subplots(1, 1)
 plt.ylabel('Mean RMSE')
 plt.xlabel('Discretization Methods')
-_ = ax.bar(np.arange(1,7,2), [ar_mean_min_el, ar_mean_min_ep, ar_mean_min_km])
-ax.set_xticks(np.arange(1,7,2))
+_ = ax.bar(np.arange(1, 7, 2), [ar_mean_min_el, ar_mean_min_ep,
+                                ar_mean_min_km])
+ax.set_xticks(np.arange(1, 7, 2))
 ax.set_xticklabels(['eq-len', 'eq-prob', 'k-means'])
-plt.ylim(10,12)
+plt.ylim(10, 12)
 
 fig, ax = plt.subplots(1, 1)
 plt.ylabel('RMSE')
 plt.xlabel('Encoding Methods')
-_ = ax.bar(np.arange(1,9,2), [ar_mean_min_oh, ar_mean_min_oh_exp, ar_mean_min_or, ar_mean_min_cr])
-ax.set_xticks(np.arange(1,9,2))
+_ = ax.bar(np.arange(1, 9, 2), [ar_mean_min_oh, ar_mean_min_oh_exp,
+                                ar_mean_min_or, ar_mean_min_cr])
+ax.set_xticks(np.arange(1, 9, 2))
 ax.set_xticklabels(['one-hot-max', 'one-hot-exp', 'ordinal', 'circular'])
-plt.ylim(10,12)
+plt.ylim(10, 12)
 
-fig, ax = plt.subplots(1, 1, figsize=(10,5))
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 plt.ylabel('RMSE')
 plt.xlabel('Experiments')
-_ = ax.bar(np.arange(1,34), np.sort(ar_mean_100[1:]))
-ax.set_xticks(np.arange(1,34))
+_ = ax.bar(np.arange(1, 34), np.sort(ar_mean_100[1:]))
+ax.set_xticks(np.arange(1, 34))
 ax.set_xticklabels(np.argsort(ar_mean_100[1:])+1)
-plt.ylim(9.5,13)
-plt.xlim(0,35)
+plt.ylim(9.5, 13)
+plt.xlim(0, 35)
 
 for disc_name in disc_names:
     for encod_met in ['one_hot', 'ordinal', 'circular']:

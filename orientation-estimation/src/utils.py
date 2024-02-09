@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from scipy.cluster.vq import kmeans2
 from scipy.cluster.vq import ClusterError
 import torch
+import torchvision.transforms.functional as tf
 
 
 def split_database(base_path, num_folds):
@@ -267,6 +268,35 @@ def decode_angle(outputs, method, discs, prob_fnc, regr='max'):
     ests = np.where(ests < 0, ests+2*np.pi, ests) / 2
 
     return ests
+
+
+def view_ests(x, oris, ests, mask, img_name):
+    x_np = x[0].cpu().detach().numpy()
+    img = ((x_np - x_np.min()) / (x_np.max()-x_np.min()) * 255).astype(int)
+    w, h = img.shape
+    ws, hs = ests.shape
+
+    mask_np = mask.cpu().detach().numpy()
+    mask_resized = tf.resize(torch.from_numpy(np.array([[mask]])),
+                             x.shape[1:], interpolation=0)
+    mask_resized_np = mask_resized[0, 0].cpu().detach().numpy()
+
+    xx, yy = np.meshgrid(np.linspace(4, h-8, hs), np.linspace(4, w-8, ws))
+    u = np.sin(ests) * mask_np
+    v = np.cos(ests) * mask_np
+    uu = np.sin(oris) * mask_np
+    vv = np.cos(oris) * mask_np
+
+    fig = plt.figure(figsize=(10, 10), dpi=300)
+    plt.imshow((img * mask_resized_np), cmap='gray')
+    plt.quiver(xx, yy, vv, uu, color='g', headlength=0, headwidth=1,
+               pivot='mid', width=0.006)
+    plt.quiver(xx, yy, v, u, color='r', headlength=0, headwidth=1,
+               pivot='mid', width=0.003)
+    plt.axis('off')
+
+    fig.savefig(img_name)
+    plt.close('all')
 
 
 def calc_rmse(oris, ests, mask_np):
