@@ -5,7 +5,6 @@ import torch.nn.functional as F
 
 from foe_fp_image_dataset import FOEFPImageDataset
 from foe_model_convnet import FOEConvNet
-# from foe_model_vit import VisionTransformerForSegmentation as ViT
 import utils
 
 from matplotlib import pyplot as plt
@@ -60,10 +59,6 @@ for fold in range(num_folds):
                                         base_path_synth],
                                        [fp_ids_bad_tra, fp_ids_good_tra,
                                         fp_ids_synth_tra])
-    # foe_img_ds_val.set_hflip()
-    # foe_img_ds_tra.set_hflip()
-    # foe_img_ds_val.set_rotate()
-    # foe_img_ds_tra.set_rotate()
 
     foe_img_dl_val = torch.utils.data.DataLoader(foe_img_ds_val,
                                                  batch_size=batch_size,
@@ -83,13 +78,13 @@ for fold in range(num_folds):
                    ['eq_len', 32, 8], ['eq_len', 16, 16], ['eq_prob', 128, 2],
                    ['eq_prob', 64, 4], ['eq_prob', 32, 8], ['eq_prob', 16, 16],
                    ['k_means', 32, 8], ['k_means', 16, 16]]:
-        img_name = 'f'+str(fold)+'_'+'_'.join([str(p) for p in params])
-        disc_names.append(img_name)
+        disc_name = 'f'+str(fold)+'_'+'_'.join([str(p) for p in params])
+        disc_names.append(disc_name)
         discs = utils.discretize_orientation(params[0], params[1], params[2],
                                              foe_img_ds_tra)
         discs_all.append(discs)
-        utils.view_discs(discs, img_name, foe_img_ds_tra)
-        utils.view_codes(discs, img_name)
+        utils.view_discs(discs, disc_name, foe_img_ds_tra)
+        utils.view_codes(discs, disc_name)
         np.save(disc_name+'.npy', discs)
 
     fold_loss = []
@@ -122,7 +117,6 @@ for fold in range(num_folds):
             print('>>>>> Experiment:', exp_name)
 
             model = FOEConvNet(out_len=K)
-            # model = ViT((556, 444), 16, 1, K, 256, 12, 8, 0.2)
             model = model.to(device)
             print(sum(p.numel() for p in model.parameters()))
             optimizer = torch.optim.SGD(model.parameters(), lr=lr*next(lrc),
