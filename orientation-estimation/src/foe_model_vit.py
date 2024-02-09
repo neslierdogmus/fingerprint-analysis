@@ -131,7 +131,7 @@ class OutputProjection(nn.Module):
         self.output_dims = output_dims
         self.projection = nn.Linear(embed_size,
                                     patch_size * patch_size * output_dims)
-        self.fold = nn.Fold(output_size=(image_size[0], image_size[1]),
+        self.fold = nn.Fold(output_size=(image_size[0]//8, image_size[1]//8),
                             kernel_size=patch_size, stride=patch_size)
     # end def
 
@@ -168,8 +168,8 @@ class VisionTransformerForSegmentation(nn.Module):
             VisionTransformerInput(image_size, patch_size, in_channels,
                                    embed_size),
             nn.Sequential(*heads),
-            OutputProjection(image_size, patch_size, embed_size, out_channels),
-            nn.MaxPool2d(kernel_size=8, stride=8)
+            OutputProjection(image_size, 1, embed_size, out_channels)#,
+            # nn.MaxPool2d(kernel_size=8, stride=8)
         )
     # end def
 
