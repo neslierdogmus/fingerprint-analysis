@@ -89,7 +89,7 @@ def discretize_orientation(method, num_class=32, num_disc=8, sample=None):
     return discs
 
 
-def view_discs(discs, img_name, sample=None):
+def view_discs(discs, img_name, sample):
     fig, ax = plt.subplots(1, 1)
     M = len(discs)
     width = 0.5 / M
@@ -107,49 +107,48 @@ def view_discs(discs, img_name, sample=None):
 
     fig.savefig(img_name+'_dist.png')
 
-    if sample is not None:
-        if M > 1:
-            fig, axes = plt.subplots(M//2, 2,
-                                     subplot_kw={'projection': 'polar'})
+    if M > 1:
+        fig, axes = plt.subplots(M//2, 2, subplot_kw={'projection': 'polar'})
+    else:
+        fig, axes = plt.subplots(1, 1, subplot_kw={'projection': 'polar'})
+    fig.set_figheight(30)
+    fig.set_figwidth(10)
+    oris = [ori for fp in sample.fps
+            for (oris, mask) in zip(fp.gt.orientations, fp.gt.mask)
+            for (ori, m) in zip(oris, mask) if m > 0]
+    oris = np.array(oris)
+
+    for i in range(M):
+        disc = discs[i]
+        count, _ = np.histogram(oris, np.append([0], disc))
+        count[-1] += count[0]
+        count = count[1:]
+        xticks = []
+
+        w = []
+        for j in range(len(disc)-1):
+            xticks.append((disc[j]+disc[j+1])/2)
+            w.append(disc[j+1]-disc[j])
+        if xticks[-1] > np.pi:
+            xticks[-1] -= np.pi
+        w[-1] += disc[0]
+
+        if M > 2:
+            ax2 = axes[i//2, i % 2]
+        elif M > 1:
+            ax2 = axes[i % 2]
         else:
-            fig, axes = plt.subplots(1, 1, subplot_kw={'projection': 'polar'})
-        fig.set_figheight(30)
-        fig.set_figwidth(10)
-        oris = [ori for fp in sample.fps
-                for (oris, mask) in zip(fp.gt.orientations, fp.gt.mask)
-                for (ori, m) in zip(oris, mask) if m > 0]
-        oris = np.array(oris)
-        for i in range(M):
-            disc = discs[i]
-            count, _ = np.histogram(oris, np.append([0], disc))
-            count[-1] += count[0]
-            count = count[1:]
-            xticks = []
-
-            w = []
-            for j in range(len(disc)-1):
-                xticks.append((disc[j]+disc[j+1])/2)
-                w.append(disc[j+1]-disc[j])
-            if xticks[-1] > np.pi:
-                xticks[-1] -= np.pi
-            w[-1] += disc[0]
-
-            if M > 2:
-                ax2 = axes[i//2, i % 2]
-            elif M > 1:
-                ax2 = axes[i % 2]
-            else:
-                ax2 = axes
-            mc = max(count)
-            step = int(np.ceil(mc / 300) * 100)
-            _ = ax2.bar(2*np.array(xticks), count, width=2*np.array(w),
-                        bottom=step)
-            ax2.set_xticks([0, np.pi/2, np.pi, 3*np.pi/2])
-            ax2.set_xticklabels([r'0 / $\pi$', r'$\pi/4$',
-                                 r'$\pi/2$', r'$3\pi/4$'])
-            ax2.set_yticks([step*2, step*3, step*4])
-            ax2.set_yticklabels([step, step*2, step*3])
-        fig.savefig(img_name+'_hist.png')
+            ax2 = axes
+        mc = max(count)
+        step = int(np.ceil(mc / 300) * 100)
+        _ = ax2.bar(2*np.array(xticks), count, width=2*np.array(w),
+                    bottom=step)
+        ax2.set_xticks([0, np.pi/2, np.pi, 3*np.pi/2])
+        ax2.set_xticklabels([r'0 / $\pi$', r'$\pi/4$',
+                             r'$\pi/2$', r'$3\pi/4$'])
+        ax2.set_yticks([step*2, step*3, step*4])
+        ax2.set_yticklabels([step, step*2, step*3])
+    fig.savefig(img_name+'_hist.png')
     plt.close('all')
 
 

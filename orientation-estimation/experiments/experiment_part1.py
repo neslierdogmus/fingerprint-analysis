@@ -71,7 +71,8 @@ for fold in range(num_folds):
                                                  shuffle=True,
                                                  pin_memory=use_gpu)
 
-    discs_all = [[]]
+    fold_loss = []
+    fold_results = []
     disc_names = ['f'+str(fold)+'_'+'sin_cos']
     lrc = iter(lr_coeff)
     for params in [['eq_len', 256, 1], ['eq_len', 128, 2], ['eq_len', 64, 4],
@@ -82,14 +83,10 @@ for fold in range(num_folds):
         disc_names.append(disc_name)
         discs = utils.discretize_orientation(params[0], params[1], params[2],
                                              foe_img_ds_tra)
-        discs_all.append(discs)
         utils.view_discs(discs, disc_name, foe_img_ds_tra)
         utils.view_codes(discs, disc_name)
         np.save(disc_name+'.npy', discs)
 
-    fold_loss = []
-    fold_results = []
-    for discs, disc_name in zip(discs_all, disc_names):
         for encod_met in ['one_hot', 'ordinal', 'circular']:
             if not discs:
                 K = 2

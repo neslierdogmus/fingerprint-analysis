@@ -45,6 +45,7 @@ np.save('parts_synth.npy', parts_synth)
 lr_coeff = [30, 30, 10, 30, 10]
 encod_met = 'circular'
 model_name = 'ConvNet'  # or ViT
+rot_lim = 20
 
 # %%
 all_loss = []
@@ -61,10 +62,28 @@ for fold in range(num_folds):
                                         base_path_synth],
                                        [fp_ids_bad_tra, fp_ids_good_tra,
                                         fp_ids_synth_tra])
-    # foe_img_ds_val.set_hflip()
-    # foe_img_ds_tra.set_hflip()
-    # foe_img_ds_val.set_rotate()
-    # foe_img_ds_tra.set_rotate()
+
+    # ONLY WORKS FOR PATCHES!
+    # import scipy.stats
+    # oris_orig = [ori for fp in foe_img_ds_tra.fps
+    #              for (oris, mask) in zip(fp.gt.orientations, fp.gt.mask)
+    #              for (ori, m) in zip(oris, mask) if m > 0]
+    # oris_orig = np.array(oris_orig)
+    # oris_int = np.round(oris / np.pi * 256)
+    # oris_int_shifted = oris_int + 128
+    # oris_int_shifted[oris_int_shifted > 255] -= 256
+    # oris_shifted = oris_int_shifted / 256 * np.pi
+    # g_kde = scipy.stats.gaussian_kde(oris_shifted)
+    # new_oris_shifted = g_kde.resample(len(oris))
+    # plt.hist(new_oris_shifted, np.arange(0, np.pi+np.pi/256, np.pi/256),
+    #          density=True, label='Resampled orientation histogram')
+    # plt.plot(np.arange(0, np.pi+np.pi/256, np.pi/256),
+    #          g_kde(np.arange(0, np.pi+np.pi/256, np.pi/256)),
+    #          'r', label='Estimated density using Gaussian kernel')
+    # plt.legend()
+
+    foe_img_ds_tra.set_hflip()
+    foe_img_ds_tra.set_rotlim(rot_lim)
 
     foe_img_dl_val = torch.utils.data.DataLoader(foe_img_ds_val,
                                                  batch_size=batch_size,
@@ -77,7 +96,8 @@ for fold in range(num_folds):
                                                  shuffle=True,
                                                  pin_memory=use_gpu)
 
-    discs_all = [[]]
+    fold_loss = []
+    fold_results = []
     disc_names = ['f'+str(fold)+'_'+'sin_cos']
     lrc = iter(lr_coeff)
     for params in [['eq_len', 256, 1], ['eq_len', 128, 2], ['eq_len', 64, 4],
@@ -86,14 +106,10 @@ for fold in range(num_folds):
         disc_names.append(disc_name)
         discs = utils.discretize_orientation(params[0], params[1], params[2],
                                              foe_img_ds_tra)
-        discs_all.append(discs)
-        utils.view_discs(discs, disc_name, foe_img_ds_tra)
-        utils.view_codes(discs, disc_name)
-        np.save(disc_name+'.npy', discs)
+        # utils.view_discs(discs, disc_name, foe_img_ds_tra)
+        # utils.view_codes(discs, disc_name)
+        # np.save(disc_name+'.npy', discs)
 
-    fold_loss = []
-    fold_results = []
-    for discs, disc_name in zip(discs_all, disc_names):
         n_disc = len(discs)
         n_class = len(discs[0]) - 1
         loss_fnc = F.binary_cross_entropy_with_logits
@@ -124,9 +140,15 @@ for fold in range(num_folds):
         loss_list = []
         result_list = []
         for e in range(num_epochs):
+            # oris_aug = []
             model.train()
             e_loss = []
             for x, oris, mask, fp_type, ind in foe_img_dl_tra:
+                # oa = [ori for (oris_1, mask_1) in zip(oris, mask)
+                #       for (ori_r, mask_r) in zip(oris_1, mask_1)
+                #       for (ori, m) in zip(ori_r, mask_r) if m > 0]
+                # oris_aug.extend(oa)
+
                 x = x.to(device)
                 if not discs:
                     yt = utils.angle_to_sincos(oris)
@@ -154,6 +176,16 @@ for fold in range(num_folds):
             loss_list.append(np.mean(e_loss))
             end = ' ' if e % eval_step == 0 else '\n'
             print(e, loss_list[-1], scheduler.get_last_lr(), end=end)
+
+            # fig = plt.figure()
+            # plt.hist(oris_orig, np.arange(0, np.pi+np.pi/256, np.pi/256),
+            #          density=True, label='Original orientation histogram',
+            #          alpha=0.5)
+            # plt.hist(oris_aug, np.arange(0, np.pi+np.pi/256, np.pi/256),
+            #          density=True, label='Augmented orientation histogram',
+            #          color='r', alpha=0.5)
+            # plt.legend()
+            # fig.savefig(str(rot_lim)+'.png')
 
             if e % eval_step == 0:
                 # if e % 100 == 0:
@@ -218,9 +250,9 @@ for fold in range(num_folds):
         fold_results.append(result_list)
         ind_str = str(ind[-1].item())
         rmse_str = str(new_rmse[-1])
-        print('Fingerprint {} with  RMSE {}'.format(ind_str, rmse_str))
-        img_name = exp_name + '_' + ind_str + '_' + rmse_str + '.png'
-        utils.view_ests(x[-1], oris[-1], ests[-1], mask[-1], img_name)
+        # print('Fingerprint {} with  RMSE {}'.format(ind_str, rmse_str))
+        # img_name = exp_name + '_' + ind_str + '_' + rmse_str + '.png'
+        # utils.view_ests(x[-1], oris[-1], ests[-1], mask[-1], img_name)
         if not discs:
             break
     all_loss.append(fold_loss)

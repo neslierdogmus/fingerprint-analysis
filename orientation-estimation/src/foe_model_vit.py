@@ -168,8 +168,7 @@ class VisionTransformerForSegmentation(nn.Module):
             VisionTransformerInput(image_size, patch_size, in_channels,
                                    embed_size),
             nn.Sequential(*heads),
-            OutputProjection(image_size, 1, embed_size, out_channels)#,
-            # nn.MaxPool2d(kernel_size=8, stride=8)
+            OutputProjection(image_size, 1, embed_size, out_channels)
         )
     # end def
 
