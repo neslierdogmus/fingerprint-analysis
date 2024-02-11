@@ -14,7 +14,7 @@ from matplotlib.pyplot import cm
 num_folds = 5
 use_cpu = False
 
-num_epochs = 201
+num_epochs = 401
 eval_step = 10
 batch_size = 1
 num_workers = 4
@@ -28,24 +28,30 @@ momentum = 0.5
 
 use_gpu = torch.cuda.is_available() and not use_cpu
 device = 'cuda' if use_gpu else 'cpu'
-print(device)
+print('Device:', device)
 
 base_path_bad = '../../datasets/foe/Bad'
 base_path_good = '../../datasets/foe/Good'
 base_path_synth = '../../datasets/foe/Synth'
 
-parts_bad = utils.split_database(base_path_bad, num_folds)
-parts_good = utils.split_database(base_path_good, num_folds)
-parts_synth = utils.split_database(base_path_synth, 1)
+try:
+    parts_bad = np.load('parts_bad.npy')
+    parts_good = np.load('parts_good.npy')
+    parts_synth = np.load('parts_synth.npy')
+    print('Fold splits loaded.')
+except FileNotFoundError:
+    parts_bad = utils.split_database(base_path_bad, num_folds)
+    parts_good = utils.split_database(base_path_good, num_folds)
+    parts_synth = utils.split_database(base_path_synth, 1)
 
-np.save('parts_bad.npy', parts_bad)
-np.save('parts_good.npy', parts_good)
-np.save('parts_synth.npy', parts_synth)
+    np.save('parts_bad.npy', parts_bad)
+    np.save('parts_good.npy', parts_good)
+    np.save('parts_synth.npy', parts_synth)
 
 lr_coeff = [30, 30, 10, 30, 10]
 encod_met = 'circular'
 model_name = 'ConvNet'  # or ViT
-rot_lim = 20
+rot_lim = 70
 
 # %%
 all_loss = []
@@ -98,7 +104,7 @@ for fold in range(num_folds):
 
     fold_loss = []
     fold_results = []
-    disc_names = ['f'+str(fold)+'_'+'sin_cos']
+    disc_names = []
     lrc = iter(lr_coeff)
     for params in [['eq_len', 256, 1], ['eq_len', 128, 2], ['eq_len', 64, 4],
                    ['eq_prob', 128, 2], ['eq_prob', 64, 4]]:
@@ -150,10 +156,7 @@ for fold in range(num_folds):
                 # oris_aug.extend(oa)
 
                 x = x.to(device)
-                if not discs:
-                    yt = utils.angle_to_sincos(oris)
-                else:
-                    yt = utils.encode_angle(oris, encod_met, discs)
+                yt = utils.encode_angle(oris, encod_met, discs)
                 yt = yt.to(device)
 
                 mask = mask.to(device)
@@ -169,8 +172,8 @@ for fold in range(num_folds):
                 loss = loss * mask
                 loss = torch.sum(loss) / torch.sum(mask)
                 loss.backward()
-                optimizer.step()
                 e_loss.append(loss.item())
+                optimizer.step()
                 scheduler.step()
 
             loss_list.append(np.mean(e_loss))
@@ -198,63 +201,33 @@ for fold in range(num_folds):
                     total_loss = 0.0
                     rmse_g = [[], []]
                     rmse_b = [[], []]
-                    rmse2_g = [[], []]
-                    rmse2_b = [[], []]
-                    macc_g = [[], []]
-                    macc_b = [[], []]
                     for d in range(len(dls)):
                         for x, oris, mask, fp_type, ind in dls[d]:
                             x = x.to(device)
                             yo = model(x)
                             mask_np = mask.cpu().detach().numpy()
-                            new_macc = [0] * batch_size
-                            new_rmse2 = [0] * batch_size
-                            if not discs:
-                                ests = utils.sincos_to_angle(yo)
-                            else:
-                                yt = utils.encode_angle(oris,
-                                                        encod_met,
-                                                        discs)
-                                yt = yt.to(device)
-                                new_macc = utils.calc_class_acc(yo, yt,
-                                                                mask_np,
-                                                                code_len,
-                                                                n_disc,
-                                                                encod_met)
-                                ests = utils.decode_angle(yo, encod_met, discs,
-                                                          prob_fnc, regr='max')
-                                if encod_met == 'one_hot':
-                                    ests2 = utils.decode_angle(yo, encod_met,
-                                                               discs, prob_fnc,
-                                                               regr='exp')
-                                    new_rmse2 = utils.calc_rmse(oris,
-                                                                ests2,
-                                                                mask_np)
+                            yt = utils.encode_angle(oris, encod_met, discs)
+                            yt = yt.to(device)
+                            ests = utils.decode_angle(yo, encod_met, discs,
+                                                      prob_fnc)
                             new_rmse = utils.calc_rmse(oris, ests, mask_np)
-                            for er, er2, ac, t in zip(new_rmse, new_rmse2,
-                                                      new_macc, fp_type):
+                            for er, t in zip(new_rmse, fp_type):
                                 if t == 'Good':
                                     rmse_g[d] = np.append(rmse_g[d], [er])
-                                    rmse2_g[d] = np.append(rmse2_g[d], [er2])
-                                    macc_g[d] = np.append(macc_g[d], [ac])
                                 elif t == 'Bad':
                                     rmse_b[d] = np.append(rmse_b[d], [er])
-                                    rmse2_b[d] = np.append(rmse2_b[d], [er2])
-                                    macc_b[d] = np.append(macc_b[d], [ac])
-                res_ls = [rmse_g, rmse_b, rmse2_g, rmse2_b, macc_g, macc_b]
+                res_ls = [rmse_g, rmse_b]
                 result_list.append([np.mean(res[d]) for d in range(2)
                                     for res in res_ls])
                 print(result_list[-1], end=' ')
                 print()
         fold_loss.append(loss_list)
         fold_results.append(result_list)
-        ind_str = str(ind[-1].item())
-        rmse_str = str(new_rmse[-1])
+        # ind_str = str(ind[-1].item())
+        # rmse_str = str(new_rmse[-1])
         # print('Fingerprint {} with  RMSE {}'.format(ind_str, rmse_str))
         # img_name = exp_name + '_' + ind_str + '_' + rmse_str + '.png'
         # utils.view_ests(x[-1], oris[-1], ests[-1], mask[-1], img_name)
-        if not discs:
-            break
     all_loss.append(fold_loss)
     all_results.append(fold_results)
 # %%
@@ -271,11 +244,6 @@ al_std = np.std(al, axis=0)
 ar_std = np.std(ar, axis=0)
 
 x_data = np.arange(0, num_epochs, eval_step)+1
-
-color = iter(cm.rainbow(np.linspace(0, 1, 11)))
-c = next(color)
-ind = -1
-
 
 def plot_rmse(num, x_data, ar_mean, ar_std, ind, c, par=''):
     lines = ['--', '-', '-.', ':']
@@ -294,75 +262,26 @@ def plot_rmse(num, x_data, ar_mean, ar_std, ind, c, par=''):
 
 ar_mean = np.mean(ar, axis=0)
 ar_std = np.std(ar, axis=0)
-# NaN values for one fold of one experiment. Remove for the future runs!
-ar_mean[22, :, :] = np.mean(ar[[0, 1, 2, 4], 22, :, :], axis=0)
-ar_std[22, :, :] = np.std(ar[[0, 1, 2, 4], 22, :, :], axis=0)
-ar_mean_min = np.min(ar_mean[:, :, 7], axis=1)
-ar_mean_min_sincos = np.mean(ar_mean_min[0])
-ar_mean_min_el = np.mean(ar_mean_min[1:16])
-ar_mean_min_ep = np.mean(ar_mean_min[16:28])
-ar_mean_min_km = np.mean(ar_mean_min[28:])
-ar_mean_min_oh = np.mean(ar_mean_min[np.arange(1, 34, 3)])
-ar_mean_min_oh_exp = np.mean(np.min(ar_mean[[1, 4, 7, 10, 13, 16, 19, 25, 28,
-                                             31], :, 9], axis=1))
-ar_mean_min_or = np.mean(ar_mean_min[np.arange(2, 34, 3)])
-ar_mean_min_cr = np.mean(ar_mean_min[np.arange(3, 34, 3)])
-ar_mean_100 = ar_mean[:, 11, 7]
-
-fig, ax = plt.subplots(1, 1)
-plt.ylabel('Mean RMSE')
-plt.xlabel('Discretization Methods')
-_ = ax.bar(np.arange(1, 7, 2), [ar_mean_min_el, ar_mean_min_ep,
-                                ar_mean_min_km])
-ax.set_xticks(np.arange(1, 7, 2))
-ax.set_xticklabels(['eq-len', 'eq-prob', 'k-means'])
-plt.ylim(10, 12)
-
-fig, ax = plt.subplots(1, 1)
-plt.ylabel('RMSE')
-plt.xlabel('Encoding Methods')
-_ = ax.bar(np.arange(1, 9, 2), [ar_mean_min_oh, ar_mean_min_oh_exp,
-                                ar_mean_min_or, ar_mean_min_cr])
-ax.set_xticks(np.arange(1, 9, 2))
-ax.set_xticklabels(['one-hot-max', 'one-hot-exp', 'ordinal', 'circular'])
-plt.ylim(10, 12)
+ar_mean_min = np.min(ar_mean[:, :, 3], axis=1)
+ar_mean_100 = ar_mean[:, 17, 3]
 
 fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 plt.ylabel('RMSE')
 plt.xlabel('Experiments')
-_ = ax.bar(np.arange(1, 34), np.sort(ar_mean_100[1:]))
-ax.set_xticks(np.arange(1, 34))
-ax.set_xticklabels(np.argsort(ar_mean_100[1:])+1)
-plt.ylim(9.5, 13)
-plt.xlim(0, 35)
+_ = ax.bar(np.arange(1, 6), np.sort(ar_mean_100))
+ax.set_xticks(np.arange(1, 6))
+ax.set_xticklabels(np.argsort(ar_mean_100)+1)
+plt.ylim(8, 11.5)
+plt.xlim(0, 6)
 
+color = iter(cm.rainbow(np.linspace(0, 1, 5)))
+ind = -1
+plt.figure()
 for disc_name in disc_names:
-    for encod_met in ['one_hot', 'ordinal', 'circular']:
-        ind += 1
-        fig_name = '_'.join(disc_name.split('_')[1:3] + [encod_met])
-        plt.figure(fig_name)
-        if 'sin_cos' in disc_name:
-            plt.title('Sin-Cos')
-            plot_rmse(0, x_data, ar_mean, ar_std, ind, c)
-            break
-        else:
-            plt.title(' '.join(disc_name.split('_')[1:3] + [encod_met]))
-            par = ' '.join(disc_name.split('_')[-2:])
-            if 'one_hot' in encod_met:
-                plot_rmse(0, x_data, ar_mean, ar_std, ind, c, 'max ' + par)
-                try:
-                    c = next(color)
-                except StopIteration:
-                    color = iter(cm.rainbow(np.linspace(0, 1, 11)))
-                    c = next(color)
-                plot_rmse(1, x_data, ar_mean, ar_std, ind, c, 'exp ' + par)
-            else:
-                plot_rmse(0, x_data, ar_mean, ar_std, ind, c, par)
-            try:
-                c = next(color)
-            except StopIteration:
-                color = iter(cm.rainbow(np.linspace(0, 1, 11)))
-                c = next(color)
+    ind += 1
+    c = next(color)
+    par = ' '.join(disc_name.split('_')[-2:])
+    plot_rmse(0, x_data, ar_mean, ar_std, ind, c, par)
 plt.show()
 
 # %%
