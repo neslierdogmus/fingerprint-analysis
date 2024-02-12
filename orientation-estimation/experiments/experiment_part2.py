@@ -18,7 +18,6 @@ num_epochs = 401
 eval_step = 10
 batch_size = 1
 num_workers = 4
-num_synth = 0
 
 lr = 10**-3
 gamma = 10**-4
@@ -51,7 +50,9 @@ except FileNotFoundError:
 lr_coeff = [30, 30, 10, 30, 10]
 encod_met = 'circular'
 model_name = 'ConvNet'  # or ViT
-rot_lim = 70
+hflip = False
+rot_lim = 0
+num_synth = 144
 
 # %%
 all_loss = []
@@ -88,7 +89,7 @@ for fold in range(num_folds):
     #          'r', label='Estimated density using Gaussian kernel')
     # plt.legend()
 
-    foe_img_ds_tra.set_hflip()
+    foe_img_ds_tra.set_hflip(hflip)
     foe_img_ds_tra.set_rotlim(rot_lim)
 
     foe_img_dl_val = torch.utils.data.DataLoader(foe_img_ds_val,
@@ -263,7 +264,7 @@ def plot_rmse(num, x_data, ar_mean, ar_std, ind, c, par=''):
 ar_mean = np.mean(ar, axis=0)
 ar_std = np.std(ar, axis=0)
 ar_mean_min = np.min(ar_mean[:, :, 3], axis=1)
-ar_mean_100 = ar_mean[:, 17, 3]
+ar_mean_100 = ar_mean_min
 
 fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 plt.ylabel('RMSE')
@@ -271,7 +272,7 @@ plt.xlabel('Experiments')
 _ = ax.bar(np.arange(1, 6), np.sort(ar_mean_100))
 ax.set_xticks(np.arange(1, 6))
 ax.set_xticklabels(np.argsort(ar_mean_100)+1)
-plt.ylim(8, 11.5)
+plt.ylim(8, 11)
 plt.xlim(0, 6)
 
 color = iter(cm.rainbow(np.linspace(0, 1, 5)))
@@ -285,3 +286,27 @@ for disc_name in disc_names:
 plt.show()
 
 # %%
+# folders = ['ConvNet', 'ConvNet_20', 'ConvNet_70', 'ConvNet_Synth']
+# num = len(folders)
+# fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+# shift = np.arange(-0.3,0.3,0.6/num)
+# xticks = np.array([])
+# xtick_labels = np.array([])
+# for i in range(num):
+#     folder = folders[i]
+#     sh = shift[i]
+#     ar = np.load('../results/part-2/'+folder+'/ar.npy')
+#     if(ar.shape[-1] > 4):
+#         ar = ar[:,:,:,[0,1,6,7]]
+#     ar_mean = np.mean(ar, axis=0)
+#     ar_std = np.std(ar, axis=0)
+#     ar_mean_min = np.min(ar_mean[:, :, 3], axis=1)
+
+#     plt.ylabel('RMSE')
+#     plt.xlabel('Experiments')
+#     _ = ax.bar(np.arange(1, 6)+sh, ar_mean_min, width=0.1, label=folder)
+# ax.set_xticks(np.arange(1, 6))
+# ax.set_xticklabels(disc_names)
+# plt.ylim(8, 11)
+# plt.xlim(0, 6)
+# plt.legend()
