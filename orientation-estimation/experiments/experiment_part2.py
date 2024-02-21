@@ -246,6 +246,7 @@ ar_std = np.std(ar, axis=0)
 
 x_data = np.arange(0, num_epochs, eval_step)+1
 
+
 def plot_rmse(num, x_data, ar_mean, ar_std, ind, c, par=''):
     lines = ['--', '-', '-.', ':']
 
@@ -286,27 +287,36 @@ for disc_name in disc_names:
 plt.show()
 
 # %%
-# folders = ['ConvNet', 'ConvNet_20', 'ConvNet_70', 'ConvNet_Synth']
+# folders = ['ConvNet', 'ConvNet_20', 'ConvNet_70', 'ConvNet_Synth_48',
+#            'ConvNet_Synth_144', 'ConvNet_Synth_144_20']
+# labels = ['Tam evrişimli', 'Tam evrişimli_20', 'Tam evrişimli_70',
+#           'Tam evrişimli_Sentetik_48', 'Tam evrişimli_Sentetik_144',
+#           'Tam evrişimli_Sentetik_144_20', ]
 # num = len(folders)
 # fig, ax = plt.subplots(1, 1, figsize=(10, 5))
-# shift = np.arange(-0.3,0.3,0.6/num)
+# shift = np.arange(-0.4, 0.4, 0.8/num)
 # xticks = np.array([])
 # xtick_labels = np.array([])
 # for i in range(num):
 #     folder = folders[i]
 #     sh = shift[i]
 #     ar = np.load('../results/part-2/'+folder+'/ar.npy')
-#     if(ar.shape[-1] > 4):
-#         ar = ar[:,:,:,[0,1,6,7]]
+#     if ar.shape[-1] > 4:
+#         ar = ar[:, :, :, [0, 1, 6, 7]]
 #     ar_mean = np.mean(ar, axis=0)
 #     ar_std = np.std(ar, axis=0)
-#     ar_mean_min = np.min(ar_mean[:, :, 3], axis=1)
+#     ar_mean_min = np.min(ar_mean[:, :, 2], axis=1)
+#     ar_std_min = ar_std[[0, 1, 2, 3, 4], np.argmin(ar_mean[:, :, 2], axis=1),
+#                         2]
 
-#     plt.ylabel('RMSE')
-#     plt.xlabel('Experiments')
-#     _ = ax.bar(np.arange(1, 6)+sh, ar_mean_min, width=0.1, label=folder)
+#     plt.ylabel('Ortalama Karesel Hata')
+#     plt.xlabel('Deneyler')
+#     _ = ax.bar(np.arange(1, 6)+sh, ar_mean_min, width=0.1, label=labels[i])
+#     ax.errorbar(np.arange(1, 6)+sh, ar_mean_min, ar_std_min, fmt='.',
+#                 color='Black', elinewidth=2, capthick=10, errorevery=1,
+#                 alpha=0.5, ms=2, capsize=0)
 # ax.set_xticks(np.arange(1, 6))
 # ax.set_xticklabels(disc_names)
-# plt.ylim(8, 11)
+# plt.ylim(6, 13)
 # plt.xlim(0, 6)
 # plt.legend()
