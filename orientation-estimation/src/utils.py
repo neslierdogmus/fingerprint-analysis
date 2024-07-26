@@ -90,7 +90,10 @@ def discretize_orientation(method, num_class=32, num_disc=8, sample=None):
 
 
 def view_discs(discs, img_name, sample):
+    
     fig, ax = plt.subplots(1, 1)
+    fig.set_figheight(6)
+    fig.set_figwidth(6)
     M = len(discs)
     width = 0.5 / M
     for i in range(M):
@@ -100,19 +103,19 @@ def view_discs(discs, img_name, sample):
                wedgeprops=dict(width=width, edgecolor='w'))
     ax.plot([-1.05, 1.05], [0, 0], linewidth=1, color='k', clip_on=False)
     ax.plot([0, 0], [-1.05, 1.05], linewidth=1, color='k', clip_on=False)
-    ax.text(1.1, -0.025, r'0$^\circ$/ $\pi$')
-    ax.text(-0.2, 1.1, r'45$^\circ$/ $\pi/4$')
-    ax.text(-1.5, -0.025, r'90$^\circ$/ $\pi/2$')
-    ax.text(-0.25, -1.15, r'135$^\circ$/ $3\pi/4$')
+    ax.text(1.06, -0.035, r'0$^\circ$/ $\pi$', fontsize=16)
+    ax.text(-0.08, 1.1, r'$\pi/4$', fontsize=16)
+    ax.text(-1.25, -0.035, r'$\pi/2$', fontsize=16)
+    ax.text(-0.15, -1.2, r'$3\pi/4$', fontsize=16)
 
     fig.savefig(img_name+'_dist.png')
-
     if M > 1:
         fig, axes = plt.subplots(M//2, 2, subplot_kw={'projection': 'polar'})
     else:
         fig, axes = plt.subplots(1, 1, subplot_kw={'projection': 'polar'})
-    fig.set_figheight(30)
-    fig.set_figwidth(10)
+    fig.set_figheight(9)
+    fig.set_figwidth(6)
+    fig.tight_layout()
     oris = [ori for fp in sample.fps
             for (oris, mask) in zip(fp.gt.orientations, fp.gt.mask)
             for (ori, m) in zip(oris, mask) if m > 0]
@@ -144,12 +147,15 @@ def view_discs(discs, img_name, sample):
         _ = ax2.bar(2*np.array(xticks), count, width=2*np.array(w),
                     bottom=step)
         ax2.set_xticks([0, np.pi/2, np.pi, 3*np.pi/2])
-        ax2.set_xticklabels([r'0 / $\pi$', r'$\pi/4$',
+        ax2.set_xticklabels([r'0($\pi$)', r'$\pi/4$',
                              r'$\pi/2$', r'$3\pi/4$'])
+        # ax2.set_yticks([step*2, step*3, step*4])
+        # ax2.set_yticklabels([step, step*2, step*3])
         ax2.set_yticks([step*2, step*3, step*4])
-        ax2.set_yticklabels([step, step*2, step*3])
+        ax2.set_yticklabels([step, '', step*3])
+        ax2.tick_params(axis='both', which='major', labelsize=16)
     fig.savefig(img_name+'_hist.png')
-    plt.close('all')
+    #plt.close('all')
 
 
 def encode_angle(oris, method, discs):
@@ -289,9 +295,9 @@ def view_ests(x, oris, ests, mask, img_name):
     fig = plt.figure(figsize=(10, 10), dpi=300)
     plt.imshow((img * mask_resized_np), cmap='gray')
     plt.quiver(xx, yy, vv, uu, color='g', headlength=0, headwidth=1,
-               pivot='mid', width=0.006)
+               pivot='mid', width=0.004)
     plt.quiver(xx, yy, v, u, color='r', headlength=0, headwidth=1,
-               pivot='mid', width=0.003)
+               pivot='mid', width=0.002)
     plt.axis('off')
 
     fig.savefig(img_name)

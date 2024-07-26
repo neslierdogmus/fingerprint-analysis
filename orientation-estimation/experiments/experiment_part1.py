@@ -233,11 +233,15 @@ for fold in range(num_folds):
     all_results.append(fold_results)
 # %%
 # plot all results
-al = np.array(all_loss)
-ar = np.array(all_results)
+# al = np.array(all_loss)
+# ar = np.array(all_results)
+al = np.load('/home/finperprint-analysis/foe/results/part-1/best_10_401/al.npy')
+ar = np.load('/home/finperprint-analysis/foe/results/part-1/best_10_401/ar.npy')
+num_epochs = 401
+eval_step = 10
 
-np.save('al.npy', al)
-np.save('ar.npy', ar)
+# np.save('al.npy', al)
+# np.save('ar.npy', ar)
 
 al_mean = np.mean(al, axis=0)
 ar_mean = np.mean(ar, axis=0)
@@ -301,7 +305,7 @@ ax.set_xticks(np.arange(1, 9, 2))
 ax.set_xticklabels(['one-hot-max', 'one-hot-exp', 'ordinal', 'circular'])
 plt.ylim(10, 12)
 
-fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+fig, ax = plt.subplots(1, 1, figsize=(8, 4))
 plt.ylabel('RMSE')
 plt.xlabel('Experiments')
 _ = ax.bar(np.arange(1, 34), np.sort(ar_mean_100[1:]))
@@ -339,4 +343,177 @@ for disc_name in disc_names:
                 c = next(color)
 plt.show()
 
+# %% Plots for the journal paper
+
+num_epochs = 101
+num_measurements = 11
+ar = np.load('/home/finperprint-analysis/foe/results/part-1/best_10_401/ar.npy')
+ar_mean = np.mean(ar, axis=0)
+ar_std = np.std(ar, axis=0)
+ar_mean[22, :, :] = np.mean(ar[[0, 1, 2, 4], 22, :, :], axis=0)
+ar_std[22, :, :] = np.std(ar[[0, 1, 2, 4], 22, :, :], axis=0)
+
+ar_mean = ar_mean[:,:num_measurements,:]
+ar_std = ar_std[:,:num_measurements,:]
+
+ar_mean_2 = np.zeros((44,num_measurements,4))
+ar_mean_2[0,:,:] = ar_mean[1,:,[0,1,6,7]].T
+ar_mean_2[1,:,:] = ar_mean[1,:,[2,3,8,9]].T
+ar_mean_2[2:4,:,:] = ar_mean[2:4,:,[0,1,6,7]]
+ar_mean_2[4,:,:] = ar_mean[4,:,[0,1,6,7]].T
+ar_mean_2[5,:,:] = ar_mean[4,:,[2,3,8,9]].T
+ar_mean_2[6:8,:,:] = ar_mean[5:7,:,[0,1,6,7]]
+ar_mean_2[8,:,:] = ar_mean[7,:,[0,1,6,7]].T
+ar_mean_2[9,:,:] = ar_mean[7,:,[2,3,8,9]].T
+ar_mean_2[10:12,:,:] = ar_mean[8:10,:,[0,1,6,7]]
+ar_mean_2[12,:,:] = ar_mean[10,:,[0,1,6,7]].T
+ar_mean_2[13,:,:] = ar_mean[10,:,[2,3,8,9]].T
+ar_mean_2[14:16,:,:] = ar_mean[11:13,:,[0,1,6,7]]
+ar_mean_2[16,:,:] = ar_mean[13,:,[0,1,6,7]].T
+ar_mean_2[17,:,:] = ar_mean[13,:,[2,3,8,9]].T
+ar_mean_2[18:20,:,:] = ar_mean[14:16,:,[0,1,6,7]]
+ar_mean_2[20,:,:] = ar_mean[16,:,[0,1,6,7]].T
+ar_mean_2[21,:,:] = ar_mean[16,:,[2,3,8,9]].T
+ar_mean_2[22:24,:,:] = ar_mean[17:19,:,[0,1,6,7]]
+ar_mean_2[24,:,:] = ar_mean[19,:,[0,1,6,7]].T
+ar_mean_2[25,:,:] = ar_mean[19,:,[2,3,8,9]].T
+ar_mean_2[26:28,:,:] = ar_mean[20:22,:,[0,1,6,7]]
+ar_mean_2[28,:,:] = ar_mean[22,:,[0,1,6,7]].T
+ar_mean_2[29,:,:] = ar_mean[22,:,[2,3,8,9]].T
+ar_mean_2[30:32,:,:] = ar_mean[23:25,:,[0,1,6,7]]
+ar_mean_2[32,:,:] = ar_mean[25,:,[0,1,6,7]].T
+ar_mean_2[33,:,:] = ar_mean[25,:,[2,3,8,9]].T
+ar_mean_2[34:36,:,:] = ar_mean[26:28,:,[0,1,6,7]]
+ar_mean_2[36,:,:] = ar_mean[28,:,[0,1,6,7]].T
+ar_mean_2[37,:,:] = ar_mean[28,:,[2,3,8,9]].T
+ar_mean_2[38:40,:,:] = ar_mean[29:31,:,[0,1,6,7]]
+ar_mean_2[40,:,:] = ar_mean[31,:,[0,1,6,7]].T
+ar_mean_2[41,:,:] = ar_mean[31,:,[2,3,8,9]].T
+ar_mean_2[42:,:,:] = ar_mean[32:,:,[0,1,6,7]]
+
+ar_std_2 = np.zeros((44,num_measurements,4))
+ar_std_2[0,:,:] = ar_std[1,:,[0,1,6,7]].T
+ar_std_2[1,:,:] = ar_std[1,:,[2,3,8,9]].T
+ar_std_2[2:4,:,:] = ar_std[2:4,:,[0,1,6,7]]
+ar_std_2[4,:,:] = ar_std[4,:,[0,1,6,7]].T
+ar_std_2[5,:,:] = ar_std[4,:,[2,3,8,9]].T
+ar_std_2[6:8,:,:] = ar_std[5:7,:,[0,1,6,7]]
+ar_std_2[8,:,:] = ar_std[7,:,[0,1,6,7]].T
+ar_std_2[9,:,:] = ar_std[7,:,[2,3,8,9]].T
+ar_std_2[10:12,:,:] = ar_std[8:10,:,[0,1,6,7]]
+ar_std_2[12,:,:] = ar_std[10,:,[0,1,6,7]].T
+ar_std_2[13,:,:] = ar_std[10,:,[2,3,8,9]].T
+ar_std_2[14:16,:,:] = ar_std[11:13,:,[0,1,6,7]]
+ar_std_2[16,:,:] = ar_std[13,:,[0,1,6,7]].T
+ar_std_2[17,:,:] = ar_std[13,:,[2,3,8,9]].T
+ar_std_2[18:20,:,:] = ar_std[14:16,:,[0,1,6,7]]
+ar_std_2[20,:,:] = ar_std[16,:,[0,1,6,7]].T
+ar_std_2[21,:,:] = ar_std[16,:,[2,3,8,9]].T
+ar_std_2[22:24,:,:] = ar_std[17:19,:,[0,1,6,7]]
+ar_std_2[24,:,:] = ar_std[19,:,[0,1,6,7]].T
+ar_std_2[25,:,:] = ar_std[19,:,[2,3,8,9]].T
+ar_std_2[26:28,:,:] = ar_std[20:22,:,[0,1,6,7]]
+ar_std_2[28,:,:] = ar_std[22,:,[0,1,6,7]].T
+ar_std_2[29,:,:] = ar_std[22,:,[2,3,8,9]].T
+ar_std_2[30:32,:,:] = ar_std[23:25,:,[0,1,6,7]]
+ar_std_2[32,:,:] = ar_std[25,:,[0,1,6,7]].T
+ar_std_2[33,:,:] = ar_std[25,:,[2,3,8,9]].T
+ar_std_2[34:36,:,:] = ar_std[26:28,:,[0,1,6,7]]
+ar_std_2[36,:,:] = ar_std[28,:,[0,1,6,7]].T
+ar_std_2[37,:,:] = ar_std[28,:,[2,3,8,9]].T
+ar_std_2[38:40,:,:] = ar_std[29:31,:,[0,1,6,7]]
+ar_std_2[40,:,:] = ar_std[31,:,[0,1,6,7]].T
+ar_std_2[41,:,:] = ar_std[31,:,[2,3,8,9]].T
+ar_std_2[42:,:,:] = ar_std[32:,:,[0,1,6,7]]
+
+color = iter(cm.rainbow(np.linspace(0, 1, 44)))
+
+fig, [ax1, ax2, ax3] = plt.subplots(1, 3, figsize=(16, 4))
+ax1.set_ylabel('RMSE', fontsize=12)
+# ax1.set_xlabel('Epoch', fontsize=12)
+ax1.set_title('(a)', fontsize=12)
+ax1.tick_params(axis='both', which='major', labelsize=12)
+# ax2.set_ylabel('RMSE', fontsize=12)
+ax2.set_xlabel('Epoch', fontsize=12)
+ax2.set_title('(b)', fontsize=12)
+ax2.tick_params(axis='both', which='major', labelsize=12)
+# ax3.set_xlabel('Epoch', fontsize=12)
+# ax3.set_ylabel('RMSE', fontsize=12)
+ax3.set_title('(c)', fontsize=12)
+ax3.tick_params(axis='both', which='major', labelsize=12)
+color = iter(cm.rainbow(np.linspace(0, 1, 20)))
+for i in range(0,20):
+    c = next(color)
+    ax1.plot(np.arange(0,num_epochs,10), ar_mean_2[i, :, 0], '-', c=c, label='Exp.'+str(i+1).zfill(2))
+    ax1.fill_between(np.arange(0,num_epochs,10), ar_mean_2[i, :, 0]-ar_std_2[i, :, 0],
+                     ar_mean_2[i, :, 0]+ar_std_2[i, :, 0], color=c, alpha=.15)
+    ax1.plot(np.arange(0,num_epochs,10), ar_mean_2[i, :, 1], ':', c=c)
+    ax1.fill_between(np.arange(0,num_epochs,10), ar_mean_2[i, :, 1]-ar_std_2[i, :, 1],
+                     ar_mean_2[i, :, 1]+ar_std_2[i, :, 1], color=c, alpha=.15)
+ax1.legend(fontsize=10, ncols=2)
+
+color = iter(cm.rainbow(np.linspace(0, 1, 16)))
+for i in range(20,36):
+    c = next(color)
+    ax2.plot(np.arange(0,num_epochs,10), ar_mean_2[i, :, 0], '-', c=c, label='Exp.'+str(i+1))
+    ax2.fill_between(np.arange(0,num_epochs,10), ar_mean_2[i, :, 0]-ar_std_2[i, :, 0],
+                     ar_mean_2[i, :, 0]+ar_std_2[i, :, 0], color=c, alpha=.15)
+    ax2.plot(np.arange(0,num_epochs,10), ar_mean_2[i, :, 1], ':', c=c)
+    ax2.fill_between(np.arange(0,num_epochs,10), ar_mean_2[i, :, 1]-ar_std_2[i, :, 1],
+                     ar_mean_2[i, :, 1]+ar_std_2[i, :, 1], color=c, alpha=.15)
+ax2.legend(fontsize=10, ncols=2)
+
+color = iter(cm.rainbow(np.linspace(0, 1, 8)))
+for i in range(36,44):
+    c = next(color)
+    ax3.plot(np.arange(0,num_epochs,10), ar_mean_2[i, :, 0], '-', c=c, label='Exp.'+str(i+1))
+    ax3.fill_between(np.arange(0,num_epochs,10), ar_mean_2[i, :, 0]-ar_std_2[i, :, 0],
+                     ar_mean_2[i, :, 0]+ar_std_2[i, :, 0], color=c, alpha=.15)
+    ax3.plot(np.arange(0,num_epochs,10), ar_mean_2[i, :, 1], ':', c=c)
+    ax3.fill_between(np.arange(0,num_epochs,10), ar_mean_2[i, :, 1]-ar_std_2[i, :, 1],
+                     ar_mean_2[i, :, 1]+ar_std_2[i, :, 1], color=c, alpha=.15)
+ax3.legend(fontsize=10, ncols=2)
+
 # %%
+ar = np.load('/home/finperprint-analysis/foe/results/part-1/best_10_401/ar.npy')
+num_epochs = 401
+eval_step = 10
+ar_mean = np.mean(ar, axis=0)
+ar_mean[22, :, :] = np.mean(ar[[0, 1, 2, 4], 22, :, :], axis=0)
+ar_mean_min = np.min(ar_mean[:, :, 7], axis=1)
+ar_mean_min_el = ar_mean_min[1:16]
+ar_mean_min_ep = ar_mean_min[16:28]
+ar_mean_min_km = ar_mean_min[28:]
+ar_mean_min_oh = ar_mean_min[np.arange(1, 34, 3)]
+ar_mean_min_oh_exp = np.min(ar_mean[[1, 4, 7, 10, 13, 16, 19, 25, 28, 31], :, 9], axis=1)
+ar_mean_min_or = ar_mean_min[np.arange(2, 34, 3)]
+ar_mean_min_cr = ar_mean_min[np.arange(3, 34, 3)]
+fig, ax = plt.subplots(1, 1, figsize=(7, 4))
+ax.set_ylabel('Mean RMSE')
+ax.set_xlabel('Discretization and Encoding Methods')
+ax.yaxis.grid(True)
+bplot = ax.boxplot([ar_mean_min_el, ar_mean_min_ep, ar_mean_min_km, ar_mean_min_oh, ar_mean_min_oh_exp, ar_mean_min_or, ar_mean_min_cr],labels=['equal\nlength', 'equal\nprobability', 'random', 'one-hot\nmax', 'one-hot\nexp', 'ordinal', 'circular'], showmeans=True, widths=0.4, positions=[1,2,3,5,6,7,8], patch_artist=True)
+for patch, color in zip(bplot['boxes'], ['cornsilk', 'cornsilk', 'cornsilk', 'azure', 'azure', 'azure', 'azure', 'azure']):
+    patch.set_facecolor(color)
+# %%
+ar = np.load('/home/finperprint-analysis/foe/results/part-1/best_10_401/ar.npy')
+num_epochs = 401
+eval_step = 10
+ar_mean = np.mean(ar, axis=0)
+ar_mean[22, :, :] = np.mean(ar[[0, 1, 2, 4], 22, :, :], axis=0)
+ar_mean_min = np.min(ar_mean[:, :, 7], axis=1)
+ar_mean_min_el = ar_mean_min[1:16]
+ar_mean_min_ep = ar_mean_min[16:28]
+ar_mean_min_km = ar_mean_min[28:]
+ar_mean_min_oh = ar_mean_min[np.arange(1, 34, 3)]
+ar_mean_min_oh_exp = np.min(ar_mean[[1, 4, 7, 10, 13, 16, 19, 25, 28, 31], :, 9], axis=1)
+ar_mean_min_or = ar_mean_min[np.arange(2, 34, 3)]
+ar_mean_min_cr = ar_mean_min[np.arange(3, 34, 3)]
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+ax.set_ylabel('RMSE', fontsize=16)
+ax.set_xlabel('Discretization and Encoding Methods', fontsize=16)
+ax.yaxis.grid(True)
+ax.tick_params(axis='both', which='major', labelsize=16)
+bplot = ax.boxplot([ar_mean_min_el, ar_mean_min_ep, ar_mean_min_km, ar_mean_min_oh, ar_mean_min_oh_exp, ar_mean_min_or, ar_mean_min_cr],labels=['equal\nlength', 'equal\nprobability', 'random', 'one-hot\nmax', 'one-hot\nexp', 'ordinal', 'cyclic'], showmeans=True, widths=0.4, positions=[1,2,3,5,6,7,8], patch_artist=True)
+for patch, color in zip(bplot['boxes'], ['cornsilk', 'cornsilk', 'cornsilk', 'azure', 'azure', 'azure', 'azure', 'azure']):
+    patch.set_facecolor(color)

@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 import torchvision.transforms.functional as tf
 
 from foe_fingerprint import FOEFingerprint
+import utils_perlin
 
 
 class FOEFPImageDataset(Dataset):
@@ -20,6 +21,8 @@ class FOEFPImageDataset(Dataset):
         self.fp_ids_list = fp_ids_list
         self._hflip = False
         self._rot_lim = 0
+        self._gamma_correct = False
+        self._add_noise = False
         self.fps = []
         for i in range(len(base_path_list)):
             base_path = self.base_path_list[i]
@@ -47,6 +50,7 @@ class FOEFPImageDataset(Dataset):
         orientations = foe_fingerprint.gt.orientations
         border = foe_fingerprint.gt.border
         step = foe_fingerprint.gt.step
+        fp_type = foe_fingerprint.fp_type
 
         pad_h = 576-x.shape[0]
         pad_w = 464-x.shape[1]
@@ -65,15 +69,9 @@ class FOEFPImageDataset(Dataset):
         x = torch.unsqueeze(x, 0)
         orientations = torch.unsqueeze(orientations, 0)
         mask = torch.unsqueeze(mask, 0)
-
-        mask_resized = tf.resize(mask, x.shape[1:], interpolation=0)
-        x = x * mask_resized
-        x_mean = x.sum() / mask_resized.sum()
-        x = (x - x_mean) * mask_resized
-        x_mean = x.sum() / mask_resized.sum()
-        x_var = (((x-x_mean)**2 * mask_resized).sum() / (mask_resized.sum()))
-        x_std = x_var**0.5
-        x = x / x_std
+        
+        if fp_type == "Synth":
+            x = x*255
 
         if self._hflip and random.random() >= 0.5:
             x = tf.hflip(x)
@@ -87,17 +85,29 @@ class FOEFPImageDataset(Dataset):
         if self._rot_lim > 0:
             angle = random.uniform(-self._rot_lim, self._rot_lim)
             angle_radian = angle / 180 * np.pi
-            for r in range(orientations.shape[1]):
-                for c in range(orientations.shape[2]):
-                    if mask[0, r, c]:
-                        orientations[0, r, c] += angle_radian
-                        if orientations[0, r, c] >= np.pi:
-                            orientations[0, r, c] -= np.pi
-                        elif orientations[0, r, c] < 0:
-                            orientations[0, r, c] += np.pi
+            orientations += angle_radian
+            orientations[orientations < 0] += np.pi
+            orientations[orientations >= np.pi] -= np.pi
+            orientations *= mask 
             x = tf.rotate(x, angle, interpolation=PIL.Image.BILINEAR)
             orientations = tf.rotate(orientations, angle)
             mask = tf.rotate(mask, angle)
+        
+        if self._gamma_correct:
+            gamma = random.uniform(0.2, 5)
+            x = 255 * tf.adjust_gamma(x/255, gamma)
+        
+        if self._add_noise:
+            x = x + 5**0.5 * torch.randn_like(x)
+
+        mask_resized = tf.resize(mask, x.shape[1:], interpolation=0)
+        x = x * mask_resized
+        x_mean = x.sum() / mask_resized.sum()
+        x = (x - x_mean) * mask_resized
+        x_mean = x.sum() / mask_resized.sum()
+        x_var = (((x-x_mean)**2 * mask_resized).sum() / (mask_resized.sum()))
+        x_std = x_var**0.5
+        x = x / x_std
 
         mask = mask.squeeze()
         orientations = orientations.squeeze()
@@ -112,6 +122,12 @@ class FOEFPImageDataset(Dataset):
 
     def set_rotlim(self, rot_lim):
         self._rot_lim = rot_lim
+
+    def set_gamma_correct(self, value=True):
+        self._gamma_correct = value
+
+    def set_add_noise(self, value=True):
+        self._add_noise = value
 
 
 if __name__ == '__main__':

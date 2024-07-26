@@ -21,13 +21,13 @@ class FOEConvNet(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2),
             nn.ReLU(inplace=True),
             # Defining another 2D convolution
-            nn.Conv2d(25, 49, kernel_size=13, stride=1, padding='same'),
+            nn.Conv2d(25, 49, kernel_size=9, stride=1, padding='same'),
             nn.ReLU(inplace=True),
             # Defining another 2D convolution
-            nn.Conv2d(49, 49, kernel_size=13, stride=1, padding='same'),
+            nn.Conv2d(49, 49, kernel_size=9, stride=1, padding='same'),
             nn.ReLU(inplace=True),
             # Defining another 2D convolution
-            nn.Conv2d(49, 49, kernel_size=13, stride=1, padding='same'),
+            nn.Conv2d(49, 49, kernel_size=9, stride=1, padding='same'),
             nn.ReLU(inplace=True),
             # Defining another 2D convolution
             nn.Conv2d(49, 512, kernel_size=1, stride=1, padding='same'),

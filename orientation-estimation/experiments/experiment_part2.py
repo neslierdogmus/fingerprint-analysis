@@ -14,7 +14,7 @@ from matplotlib.pyplot import cm
 num_folds = 5
 use_cpu = False
 
-num_epochs = 401
+num_epochs = 1001
 eval_step = 10
 batch_size = 1
 num_workers = 4
@@ -29,9 +29,9 @@ use_gpu = torch.cuda.is_available() and not use_cpu
 device = 'cuda' if use_gpu else 'cpu'
 print('Device:', device)
 
-base_path_bad = '../../datasets/foe/Bad'
-base_path_good = '../../datasets/foe/Good'
-base_path_synth = '../../datasets/foe/Synth'
+base_path_bad = './datasets/foe/Bad'
+base_path_good = './datasets/foe/Good'
+base_path_synth = './datasets/foe/Synth'
 
 try:
     parts_bad = np.load('parts_bad.npy')
@@ -50,9 +50,9 @@ except FileNotFoundError:
 lr_coeff = [30, 30, 10, 30, 10]
 encod_met = 'circular'
 model_name = 'ConvNet'  # or ViT
-hflip = False
-rot_lim = 0
-num_synth = 144
+hflip = True
+rot_lim = 70
+num_synth = 0
 
 # %%
 all_loss = []
@@ -72,10 +72,10 @@ for fold in range(num_folds):
 
     # ONLY WORKS FOR PATCHES!
     # import scipy.stats
-    # oris_orig = [ori for fp in foe_img_ds_tra.fps
-    #              for (oris, mask) in zip(fp.gt.orientations, fp.gt.mask)
-    #              for (ori, m) in zip(oris, mask) if m > 0]
-    # oris_orig = np.array(oris_orig)
+    oris_orig = [ori for fp in foe_img_ds_tra.fps
+                 for (oris, mask) in zip(fp.gt.orientations, fp.gt.mask)
+                 for (ori, m) in zip(oris, mask) if m > 0]
+    oris_orig = np.array(oris_orig)
     # oris_int = np.round(oris / np.pi * 256)
     # oris_int_shifted = oris_int + 128
     # oris_int_shifted[oris_int_shifted > 255] -= 256
@@ -88,9 +88,6 @@ for fold in range(num_folds):
     #          g_kde(np.arange(0, np.pi+np.pi/256, np.pi/256)),
     #          'r', label='Estimated density using Gaussian kernel')
     # plt.legend()
-
-    foe_img_ds_tra.set_hflip(hflip)
-    foe_img_ds_tra.set_rotlim(rot_lim)
 
     foe_img_dl_val = torch.utils.data.DataLoader(foe_img_ds_val,
                                                  batch_size=batch_size,
@@ -147,14 +144,16 @@ for fold in range(num_folds):
         loss_list = []
         result_list = []
         for e in range(num_epochs):
-            # oris_aug = []
+            oris_aug = []
             model.train()
             e_loss = []
+            foe_img_ds_tra.set_hflip(hflip)
+            foe_img_ds_tra.set_rotlim(rot_lim)
             for x, oris, mask, fp_type, ind in foe_img_dl_tra:
-                # oa = [ori for (oris_1, mask_1) in zip(oris, mask)
-                #       for (ori_r, mask_r) in zip(oris_1, mask_1)
-                #       for (ori, m) in zip(ori_r, mask_r) if m > 0]
-                # oris_aug.extend(oa)
+                oa = [ori for (oris_1, mask_1) in zip(oris, mask)
+                      for (ori_r, mask_r) in zip(oris_1, mask_1)
+                      for (ori, m) in zip(ori_r, mask_r) if m > 0]
+                oris_aug.extend(oa)
 
                 x = x.to(device)
                 yt = utils.encode_angle(oris, encod_met, discs)
@@ -181,14 +180,15 @@ for fold in range(num_folds):
             end = ' ' if e % eval_step == 0 else '\n'
             print(e, loss_list[-1], scheduler.get_last_lr(), end=end)
 
-            # fig = plt.figure()
-            # plt.hist(oris_orig, np.arange(0, np.pi+np.pi/256, np.pi/256),
-            #          density=True, label='Original orientation histogram',
+            # fig, ax = plt.subplots(1, 1)
+            # ax.set_title('(a)')
+            # ax.hist(oris_orig, np.arange(0, np.pi+np.pi/256, np.pi/256),
+            #          density=True, label='Original',
             #          alpha=0.5)
-            # plt.hist(oris_aug, np.arange(0, np.pi+np.pi/256, np.pi/256),
-            #          density=True, label='Augmented orientation histogram',
+            # ax.hist(oris_aug, np.arange(0, np.pi+np.pi/256, np.pi/256),
+            #          density=True, label='Augmented',
             #          color='r', alpha=0.5)
-            # plt.legend()
+            # plt.legend(fontsize=14)
             # fig.savefig(str(rot_lim)+'.png')
 
             if e % eval_step == 0:
@@ -199,6 +199,8 @@ for fold in range(num_folds):
                 with torch.no_grad():
                     model.eval()
                     dls = [foe_img_dl_tra, foe_img_dl_val]
+                    foe_img_ds_tra.set_hflip(False)
+                    foe_img_ds_tra.set_rotlim(False)
                     total_loss = 0.0
                     rmse_g = [[], []]
                     rmse_b = [[], []]
@@ -236,8 +238,8 @@ for fold in range(num_folds):
 al = np.array(all_loss)
 ar = np.array(all_results)
 
-np.save('al.npy', al)
-np.save('ar.npy', ar)
+# np.save('al.npy', al)
+# np.save('ar.npy', ar)
 
 al_mean = np.mean(al, axis=0)
 ar_mean = np.mean(ar, axis=0)
@@ -287,36 +289,129 @@ for disc_name in disc_names:
 plt.show()
 
 # %%
-# folders = ['ConvNet', 'ConvNet_20', 'ConvNet_70', 'ConvNet_Synth_48',
-#            'ConvNet_Synth_144', 'ConvNet_Synth_144_20']
-# labels = ['Tam evrişimli', 'Tam evrişimli_20', 'Tam evrişimli_70',
-#           'Tam evrişimli_Sentetik_48', 'Tam evrişimli_Sentetik_144',
-#           'Tam evrişimli_Sentetik_144_20', ]
-# num = len(folders)
-# fig, ax = plt.subplots(1, 1, figsize=(10, 5))
-# shift = np.arange(-0.4, 0.4, 0.8/num)
-# xticks = np.array([])
-# xtick_labels = np.array([])
-# for i in range(num):
-#     folder = folders[i]
-#     sh = shift[i]
-#     ar = np.load('../results/part-2/'+folder+'/ar.npy')
-#     if ar.shape[-1] > 4:
-#         ar = ar[:, :, :, [0, 1, 6, 7]]
-#     ar_mean = np.mean(ar, axis=0)
-#     ar_std = np.std(ar, axis=0)
-#     ar_mean_min = np.min(ar_mean[:, :, 2], axis=1)
-#     ar_std_min = ar_std[[0, 1, 2, 3, 4], np.argmin(ar_mean[:, :, 2], axis=1),
-#                         2]
+folders = ['ConvNet', 'ConvNet_20', 'ConvNet_70', 'ConvNet_Synth_48',
+           'ConvNet_Synth_144', 'ConvNet_Synth_144_20']
+labels = ['Tam evrişimli', 'Tam evrişimli_20', 'Tam evrişimli_70',
+          'Tam evrişimli_Sentetik_48', 'Tam evrişimli_Sentetik_144',
+          'Tam evrişimli_Sentetik_144_20', ]
+num = len(folders)
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+shift = np.arange(-0.4, 0.4, 0.8/num)
+xticks = np.array([])
+xtick_labels = np.array([])
+for i in range(num):
+    folder = folders[i]
+    sh = shift[i]
+    ar = np.load('../results/part-2/'+folder+'/ar.npy')
+    if ar.shape[-1] > 4:
+        ar = ar[:, :, :, [0, 1, 6, 7]]
+    ar_mean = np.mean(ar, axis=0)
+    ar_std = np.std(ar, axis=0)
+    ar_mean_min = np.min(ar_mean[:, :, 3], axis=1)
+    ar_std_min = ar_std[[0, 1, 2, 3, 4], np.argmin(ar_mean[:, :, 3], axis=1),
+                        3]
+    print(ar_mean_min)
 
-#     plt.ylabel('Ortalama Karesel Hata')
-#     plt.xlabel('Deneyler')
-#     _ = ax.bar(np.arange(1, 6)+sh, ar_mean_min, width=0.1, label=labels[i])
-#     ax.errorbar(np.arange(1, 6)+sh, ar_mean_min, ar_std_min, fmt='.',
-#                 color='Black', elinewidth=2, capthick=10, errorevery=1,
-#                 alpha=0.5, ms=2, capsize=0)
-# ax.set_xticks(np.arange(1, 6))
-# ax.set_xticklabels(disc_names)
-# plt.ylim(6, 13)
-# plt.xlim(0, 6)
-# plt.legend()
+    plt.ylabel('Ortalama Karesel Hata')
+    plt.xlabel('Deneyler')
+    _ = ax.bar(np.arange(1, 6)+sh, ar_mean_min, width=0.1, label=labels[i])
+    ax.errorbar(np.arange(1, 6)+sh, ar_mean_min, ar_std_min, fmt='.',
+                color='Black', elinewidth=2, capthick=10, errorevery=1,
+                alpha=0.5, ms=2, capsize=0)
+ax.set_xticks(np.arange(1, 6))
+ax.set_xticklabels(disc_names)
+plt.ylim(6, 13)
+plt.xlim(0, 6)
+plt.legend()
+
+# %%
+for x, oris, mask, fp_type, ind in dls[1]:
+    x = x.to(device)
+    yo = model(x)
+    mask_np = mask.cpu().detach().numpy()
+    yt = utils.encode_angle(oris, encod_met, discs)
+    yt = yt.to(device)
+    ests = utils.decode_angle(yo, encod_met, discs, prob_fnc)
+    new_rmse = utils.calc_rmse(oris, ests, mask_np)
+    ind_str = str(np.append(fp_ids_bad_val, fp_ids_good_val)[ind[-1].item()])
+    rmse_str = str(new_rmse[-1])
+    print('{} fingerprint {} with  RMSE {}'.format(fp_type[0], ind_str, rmse_str))
+    img_name = exp_name + '_' + ind_str + '_' + rmse_str + '.png'
+    utils.view_ests(x[-1], oris[-1], ests[-1], mask[-1], img_name)
+    
+    
+# %%
+ar = np.load('/home/finperprint-analysis/foe/results/part-2/ConvNet/ar.npy')[:,:,:,:]
+ar20 = np.load('/home/finperprint-analysis/foe/results/part-2/ConvNet_20/ar.npy')[:,:,:,[0,1,6,7]]
+
+ar_mean = np.mean(ar, axis=0)
+ar_std = np.std(ar, axis=0)
+ar_mean_min_args = np.argmin(ar_mean[:, :, 2], axis=1)
+ar_mean_min = ar_mean[[0, 1, 2, 3, 4], ar_mean_min_args, 3]
+ar_std_min = ar_std[[0, 1, 2, 3, 4], ar_mean_min_args, 3]
+ar_mean_min_g = ar_mean[[0, 1, 2, 3, 4], ar_mean_min_args, 2]
+ar_std_min_g = ar_std[[0, 1, 2, 3, 4], ar_mean_min_args, 2]
+
+ar_mean20 = np.mean(ar20, axis=0)
+ar_std20 = np.std(ar20, axis=0)
+ar_mean_min_args20 = np.argmin(ar_mean20[:, :, 2], axis=1)
+ar_mean_min20 = ar_mean20[[0, 1, 2, 3, 4], ar_mean_min_args20, 3]
+ar_std_min20 = ar_std20[[0, 1, 2, 3, 4], ar_mean_min_args20, 3]
+ar_mean_min_g20 = ar_mean20[[0, 1, 2, 3, 4], ar_mean_min_args20, 2]
+ar_std_min_g20 = ar_std20[[0, 1, 2, 3, 4], ar_mean_min_args20, 2]
+
+print(ar_mean_min_g, ar_std_min_g, ar_mean_min, ar_std_min)
+print(ar_mean_min_g20, ar_std_min_g20, ar_mean_min20, ar_std_min20)
+
+#%%
+ar1 = np.load('/home/finperprint-analysis/foe/results/part-2/ConvNet/ar.npy')[:,:,:,:]
+ar2 = np.loadtxt('/home/finperprint-analysis/foe/experiments/1000epoch_ar_20.txt')
+ar3 = np.loadtxt('/home/finperprint-analysis/foe/experiments/1000epoch_ar_70.txt')
+ar2 = ar2.reshape((5, 5, 101, 4))
+ar3 = ar3.reshape((5, 5, 101, 4))
+
+def mean_std_rmse(ar):
+    ar_mean = np.mean(ar, axis=0)
+    ar_std = np.std(ar, axis=0)
+    ar_mean_min_args = np.argmin(ar_mean[:, :, 3], axis=1)
+    ar_mean_min = ar_mean[[0, 1, 2, 3, 4], ar_mean_min_args, 3]
+    ar_std_min = ar_std[[0, 1, 2, 3, 4], ar_mean_min_args, 3]
+    ar_mean_min_g = ar_mean[[0, 1, 2, 3, 4], ar_mean_min_args, 2]
+    ar_std_min_g = ar_std[[0, 1, 2, 3, 4], ar_mean_min_args, 2]
+    ar_mean_min_t = ar_mean[[0, 1, 2, 3, 4], ar_mean_min_args, 1]
+    ar_std_min_t = ar_std[[0, 1, 2, 3, 4], ar_mean_min_args, 1]
+    ar_mean_min_g_t = ar_mean[[0, 1, 2, 3, 4], ar_mean_min_args, 0]
+    ar_std_min_g_t = ar_std[[0, 1, 2, 3, 4], ar_mean_min_args, 0]
+
+    print(ar_mean_min_g_t)
+    print(ar_std_min_g_t)
+    print(ar_mean_min_t)
+    print(ar_std_min_t)
+    print(ar_mean_min_g)
+    print(ar_std_min_g)
+    return (ar_mean_min, ar_std_min)
+
+fig, ax = plt.subplots(1, 1, figsize=(11, 6))
+shift = np.arange(-0.25, 0.26, 0.25)
+ar_list = [ar1, ar2, ar3]
+label_list = ['No augmentation', 'Augmentation ±20°', 'Augmentation ±70°']
+xticks = np.array([])
+xtick_labels = np.array([])
+plt.ylabel('RMSE', fontsize=16)
+plt.xlabel('Experiments', fontsize=16)
+ax.tick_params(axis='both', which='major', labelsize=12)
+for i in range(3):
+    ar = ar_list[i]
+    label = label_list[i]
+    sh = shift[i]
+    ar_mean_min, ar_std_min = mean_std_rmse(ar)
+    _ = ax.bar(np.arange(1, 6)+sh, ar_mean_min, width=0.20, label=label)
+    ax.errorbar(np.arange(1, 6)+sh, ar_mean_min, ar_std_min, fmt='.',
+                color='Black', elinewidth=2, capthick=10, errorevery=1,
+                alpha=0.5, ms=2, capsize=0)
+ax.set_xticks(np.arange(1, 6))
+ax.set_xticklabels(['el_cy_256x1\n(4)', 'el_cy_128x2\n(8)', 'el_cy_64x4\n(12)', 'ep_cy_128x2\n(24)', 'ep_cy_64x4\n(28)'])
+plt.ylim(6, 13)
+plt.xlim(0.5, 5.5)
+plt.legend(fontsize=16)
+# %%
