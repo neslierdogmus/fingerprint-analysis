@@ -8,7 +8,7 @@ from scipy import ndimage
 from matplotlib import pyplot as plt
 
 from _foe_orientation import FOEOrientation
-from foe_fingerprint import FOEFingerprint
+from foe_fp_fingerprint import FOEFingerprint
 
 
 class FOEResults:

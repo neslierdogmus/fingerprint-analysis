@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import Dataset
 import torchvision.transforms.functional as tf
 
-from foe_fingerprint import FOEFingerprint
+from foe_fp_fingerprint import FOEFingerprint
 
 
 class FOEFPPatchDataset(Dataset):

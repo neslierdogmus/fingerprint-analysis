@@ -6,7 +6,7 @@ from matplotlib import image
 import numpy as np
 
 from foe_fp_ground_truth import FOEGroundTruth
-from foe_patch import FOEPatch
+from foe_fp_patch import FOEPatch
 
 
 class FOEFingerprint:

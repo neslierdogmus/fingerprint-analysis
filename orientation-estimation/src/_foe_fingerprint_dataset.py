@@ -5,7 +5,7 @@ from pathlib import Path
 import random
 import numpy as np
 
-from foe_fingerprint import FOEFingerprint
+from foe_fp_fingerprint import FOEFingerprint
 from _foe_patch_dataset import FOEPatchDataset
 
 

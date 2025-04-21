@@ -4,7 +4,7 @@
 	"name": "FPA Container",
 	"dockerComposeFile": "docker-compose.yml",
 	"service": "fingerprint-analysis",
-	"workspaceFolder": "/home/csigb/finperprint-analysis",
+	"workspaceFolder": "/home/finperprint-analysis",
 
 	// Use this environment variable if you need to bind mount your local source code into a new container.
 	//"remoteEnv": {

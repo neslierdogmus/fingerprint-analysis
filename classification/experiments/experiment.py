@@ -1,3 +1,4 @@
+#%%
 import random
 import numpy as np
 
@@ -11,18 +12,18 @@ num_folds = 5
 use_cpu = False
 
 num_epochs = 10000
-batch_size = 8
-num_workers = 4
+batch_size = 16
+num_workers = 0
 num_synth = 0
 
 use_gpu = torch.cuda.is_available() and not use_cpu
 device = 'cuda' if use_gpu else 'cpu'
 
-base_path = 'datasets/fc'
+base_path = '/home/finperprint-analysis/datasets/fc'
 
 criterion = nn.CrossEntropyLoss()
 
-fp_ids = list(range(500))
+fp_ids = list(range(2000))
 random.shuffle(fp_ids)
 splits = np.array(np.array_split(fp_ids, num_folds))
 
@@ -62,7 +63,7 @@ for fold in range(num_folds):
 
     fp_ids_tra = np.append(splits[:fold], splits[fold+1:])
     fc_fp_ds_tra = FCFPDataset(base_path, fp_ids_tra)
-    fc_fp_ds_tra.set_hflip()
+    # fc_fp_ds_tra.set_hflip()
     fc_fp_ds_tra.set_rotate()
     # fc_fp_ds_tra.set_resize()
     fc_fp_dl_tra = torch.utils.data.DataLoader(fc_fp_ds_tra,
@@ -88,3 +89,22 @@ for fold in range(num_folds):
             total_loss += loss.item()
         print(e, total_loss / len(fc_fp_dl_tra),
               total_correct/len(fc_fp_ds_tra))
+
+        # Perform validation every 10 epochs
+        if e % 10 == 0:
+            model.eval()
+            val_loss = 0.0
+            val_correct = 0
+            with torch.no_grad():
+                for xi, yi, fp_class_2, gender, index in fc_fp_dl_val:
+                    x = xi.to(device)
+                    y = yi.to(device)
+                    y_out = model(x)
+                    loss = criterion(y_out, y)
+                    _, labels = torch.max(y, 1)
+                    _, preds = torch.max(y_out, 1)
+                    val_correct += torch.sum(preds == labels)
+                    val_loss += loss.item()
+            print(f"Validation - Epoch {e}: Loss {val_loss / len(fc_fp_dl_val)}, Accuracy {val_correct / len(fc_fp_ds_val)}")
+
+# %%
